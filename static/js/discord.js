@@ -108,7 +108,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (dlpAlert) dlpAlert.style.display = 'none';
     }
 
-    // Renderizar mensaje en la interfaz
+    // Renderizar mensaje en la interfaz con soporte para avatares reales
     function appendChatMessage(msg) {
         const card = document.createElement('div');
         card.className = 'message-card';
@@ -132,11 +132,15 @@ document.addEventListener('DOMContentLoaded', () => {
             innerContent = `<div class="msg-content">${escapeHtml(msg.content)}</div>`;
         }
 
+        const avatarHtml = msg.avatar_url 
+            ? `<img src="${msg.avatar_url}" alt="Avatar" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`
+            : msg.sender.charAt(0).toUpperCase();
+
         card.innerHTML = `
-            <div class="msg-avatar">${msg.sender.charAt(0).toUpperCase()}</div>
+            <div class="msg-avatar" onclick="openUserProfileCard('${escapeHtml(msg.sender)}')" style="cursor: pointer;">${avatarHtml}</div>
             <div class="msg-body">
                 <div class="msg-meta">
-                    <span class="msg-author">${escapeHtml(msg.sender)}</span>
+                    <span class="msg-author" onclick="openUserProfileCard('${escapeHtml(msg.sender)}')">${escapeHtml(msg.display_name || msg.sender)}</span>
                     <span class="msg-time">${msg.created_at || 'ahora'}</span>
                 </div>
                 ${innerContent}
@@ -353,4 +357,70 @@ document.addEventListener('DOMContentLoaded', () => {
             fileInput.value = '';
         });
     }
+
+    // ==========================================
+    // Modales de Perfil de Usuario (Estilo Discord)
+    // ==========================================
+    const profileModal = document.getElementById('profileSettingsModal');
+    const userProfileCardModal = document.getElementById('userProfileCardModal');
+    const avatarInput = document.getElementById('avatarFileInput');
+
+    window.openProfileModal = function() {
+        if (profileModal) profileModal.style.display = 'flex';
+    };
+
+    window.closeProfileModal = function() {
+        if (profileModal) profileModal.style.display = 'none';
+    };
+
+    window.closeUserProfileCard = function() {
+        if (userProfileCardModal) userProfileCardModal.style.display = 'none';
+    };
+
+    // Previsualización instantánea de avatar
+    if (avatarInput) {
+        avatarInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const previewImg = document.getElementById('avatarPreviewImg');
+                    if (previewImg) previewImg.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    }
+
+    // Tarjeta emergente de perfil estilo Discord (al hacer clic en cualquier miembro)
+    window.openUserProfileCard = async function(username) {
+        if (!userProfileCardModal) return;
+        try {
+            const res = await fetch(`/api/users/${encodeURIComponent(username)}/profile/`);
+            if (res.ok) {
+                const data = await res.json();
+                const bannerEl = document.getElementById('profileCardBanner');
+                if (bannerEl) bannerEl.style.backgroundColor = data.banner_color || '#5865f2';
+
+                const avatarBox = document.getElementById('profileCardAvatar');
+                if (avatarBox) {
+                    if (data.avatar_url) {
+                        avatarBox.innerHTML = `<img src="${data.avatar_url}" alt="Avatar" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
+                    } else {
+                        avatarBox.innerHTML = data.username.charAt(0).toUpperCase();
+                    }
+                }
+
+                document.getElementById('profileCardDisplayName').textContent = data.display_name || data.username;
+                document.getElementById('profileCardUsername').textContent = `@${data.username}`;
+                document.getElementById('profileCardStatus').textContent = data.custom_status || 'Sin estado';
+                document.getElementById('profileCardBio').textContent = data.bio || 'Este usuario aún no ha escrito su biografía.';
+                document.getElementById('profileCardJoined').textContent = `Miembro de DevCord desde ${data.date_joined}`;
+
+                userProfileCardModal.style.display = 'flex';
+            }
+        } catch (err) {
+            console.error('Error al cargar la tarjeta de perfil:', err);
+        }
+    };
 });

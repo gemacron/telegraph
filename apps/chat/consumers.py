@@ -47,10 +47,19 @@ class ChatConsumer(AsyncWebsocketConsumer):
             code_language=language or ""
         )
         msg.save()
+        
+        avatar_url = ""
+        display_name = self.user.username
+        if hasattr(self.user, 'profile'):
+            avatar_url = self.user.profile.get_avatar_url() or ""
+            display_name = self.user.profile.get_display_name()
+
         return {
             "id": str(msg.id),
             "content": msg.content,
             "sender": self.user.username,
+            "display_name": display_name,
+            "avatar_url": avatar_url,
             "is_code": msg.is_code_snippet,
             "language": msg.code_language,
             "formatted_code_html": msg.formatted_code_html,

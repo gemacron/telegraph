@@ -62,7 +62,9 @@
                     <span class="dm-status-dot"></span>
                     <span>
                         {% for p in dm.participants.all %}
-                            {% if p != request.user %}{{ p.username }}{% endif %}
+                            {% if p != request.user %}
+                                {{ p.profile.get_display_name|default:p.username }}
+                            {% endif %}
                         {% endfor %}
                     </span>
                 </a>
@@ -71,16 +73,27 @@
             {% endfor %}
         </div>
 
-        <!-- Panel Inferior de Usuario -->
+        <!-- Panel Inferior de Usuario (Estilo Discord) -->
         <div class="user-panel">
-            <div class="user-info">
-                <div class="user-avatar-sm">{{ request.user.username|make_list|first|upper }}</div>
-                <div>
-                    <div class="user-name-tag">{{ request.user.username }}</div>
-                    <div class="user-subtext">En línea</div>
+            <div class="user-info" onclick="openProfileModal()" title="Haga clic para editar su perfil">
+                <div class="user-avatar-sm">
+                    {% if request.user.profile.avatar %}
+                        <img src="{{ request.user.profile.avatar.url }}" alt="Avatar" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">
+                    {% else %}
+                        {{ request.user.username|make_list|first|upper }}
+                    {% endif %}
+                </div>
+                <div style="overflow: hidden; max-width: 110px;">
+                    <div class="user-name-tag" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                        {{ request.user.profile.get_display_name|default:request.user.username }}
+                    </div>
+                    <div class="user-subtext" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                        {{ request.user.profile.custom_status|default:"En línea" }}
+                    </div>
                 </div>
             </div>
-            <div>
+            <div style="display: flex; gap: 2px;">
+                <button class="btn-icon" onclick="openProfileModal()" title="Ajustes de Perfil">⚙️</button>
                 <a href="{% url 'logout' %}" class="btn-icon" title="Cerrar Sesión">🚪</a>
             </div>
         </div>
@@ -92,7 +105,11 @@
             <div class="header-title-group">
                 <span class="channel-hash">{% if is_direct %}@{% else %}#{% endif %}</span>
                 <span class="header-title">
-                    {% if is_direct %}{{ other_user.username }}{% else %}{{ active_channel.name }}{% endif %}
+                    {% if is_direct %}
+                        {{ other_user.profile.get_display_name|default:other_user.username }}
+                    {% else %}
+                        {{ active_channel.name }}
+                    {% endif %}
                 </span>
                 {% if not is_direct and active_channel.topic %}
                     <span class="header-topic">{{ active_channel.topic }}</span>
@@ -135,7 +152,9 @@
                     <div class="msg-avatar" style="background-color: var(--accent-danger);">🔒</div>
                     <div class="msg-body">
                         <div class="msg-meta">
-                            <span class="msg-author">{{ secret.author.username }}</span>
+                            <span class="msg-author" onclick="openUserProfileCard('{{ secret.author.username }}')">
+                                {{ secret.author.profile.get_display_name|default:secret.author.username }}
+                            </span>
                             <span class="msg-time">{{ secret.created_at|date:"H:i" }}</span>
                         </div>
                         <div class="secret-card" id="secretBox_{{ secret.id }}">
@@ -158,13 +177,21 @@
                 </div>
             {% endfor %}
 
-            <!-- Historial de Mensajes -->
+            <!-- Historial de Mensajes con Avatares Reales -->
             {% for msg in messages %}
                 <div class="message-card">
-                    <div class="msg-avatar">{{ msg.author.username|make_list|first|upper }}</div>
+                    <div class="msg-avatar" onclick="openUserProfileCard('{{ msg.author.username }}')" style="cursor: pointer;">
+                        {% if msg.author.profile.avatar %}
+                            <img src="{{ msg.author.profile.avatar.url }}" alt="Avatar" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">
+                        {% else %}
+                            {{ msg.author.username|make_list|first|upper }}
+                        {% endif %}
+                    </div>
                     <div class="msg-body">
                         <div class="msg-meta">
-                            <span class="msg-author">{{ msg.author.username }}</span>
+                            <span class="msg-author" onclick="openUserProfileCard('{{ msg.author.username }}')">
+                                {{ msg.author.profile.get_display_name|default:msg.author.username }}
+                            </span>
                             <span class="msg-time">{{ msg.created_at|date:"H:i" }}</span>
                         </div>
                         {% if msg.attachments.all %}
@@ -226,22 +253,141 @@
         </footer>
     </main>
 
-    <!-- 4. Barra Lateral Derecha de Miembros -->
+    <!-- 4. Barra Lateral Derecha de Miembros con Avatares -->
     <aside class="members-sidebar">
         <div class="section-label">En línea — {{ members.count }}</div>
         {% for m in members %}
-            <div class="member-item" onclick="startDmWith('{{ m.username }}')" title="Conversar en privado con {{ m.username }}">
+            <div class="member-item" onclick="openUserProfileCard('{{ m.username }}')" title="Ver perfil de {{ m.profile.get_display_name|default:m.username }}">
                 <div class="member-avatar">
-                    {{ m.username|make_list|first|upper }}
+                    {% if m.profile.avatar %}
+                        <img src="{{ m.profile.avatar.url }}" alt="Avatar" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">
+                    {% else %}
+                        {{ m.username|make_list|first|upper }}
+                    {% endif %}
                     <span class="member-status"></span>
                 </div>
-                <span class="member-name">{{ m.username }}</span>
+                <div>
+                    <div class="member-name">{{ m.profile.get_display_name|default:m.username }}</div>
+                    {% if m.profile.custom_status %}
+                        <div style="font-size: 11px; color: var(--text-muted); max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                            {{ m.profile.custom_status }}
+                        </div>
+                    {% endif %}
+                </div>
             </div>
         {% endfor %}
     </aside>
 </div>
 
-<!-- Modal 1: Enviar Secreto Efímero Autodestructible -->
+<!-- ========================================================================= -->
+<!-- MODALES DEL SISTEMA -->
+<!-- ========================================================================= -->
+
+<!-- Modal: Ajustes de Perfil de Usuario (Estilo Discord) -->
+<div class="modal-overlay" id="profileSettingsModal">
+    <div class="modal-content" style="width: 580px;">
+        <div class="modal-header">
+            <h3 class="modal-title">⚙️ Perfil de Usuario</h3>
+            <button class="modal-close" onclick="closeProfileModal()">✕</button>
+        </div>
+        <form method="POST" action="{% url 'update_profile' %}" enctype="multipart/form-data">
+            {% csrf_token %}
+            
+            <div style="display: flex; gap: 20px; align-items: center; margin-bottom: 20px; background: #232428; padding: 14px; border-radius: 8px;">
+                <div style="position: relative;">
+                    <div style="width: 72px; height: 72px; border-radius: 50%; overflow: hidden; background: var(--accent-blurple); display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: bold; border: 3px solid #3f4147;">
+                        {% if request.user.profile.avatar %}
+                            <img id="avatarPreviewImg" src="{{ request.user.profile.avatar.url }}" alt="Avatar" style="width:100%;height:100%;object-fit:cover;">
+                        {% else %}
+                            <img id="avatarPreviewImg" src="" style="width:100%;height:100%;object-fit:cover; display:none;">
+                            <span id="avatarPlaceholder">{{ request.user.username|make_list|first|upper }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div style="flex: 1;">
+                    <label class="btn-primary" style="display: inline-block; cursor: pointer; font-size: 13px; padding: 8px 14px;">
+                        Cambiar Avatar
+                        <input type="file" name="avatar" id="avatarFileInput" accept="image/png,image/jpeg,image/webp,image/gif" style="display: none;">
+                    </label>
+                    <p style="font-size: 11.5px; color: var(--text-muted); margin-top: 6px;">Se recomienda imagen cuadrada (PNG, JPG, WEBP). Se optimizará automáticamente.</p>
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+                <div class="form-group">
+                    <label class="form-label">Nombre para Mostrar</label>
+                    <input type="text" name="display_name" class="form-control" value="{{ request.user.profile.display_name }}" placeholder="{{ request.user.username }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Color del Banner</label>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input type="color" name="banner_color" class="form-control" value="{{ request.user.profile.banner_color|default:'#5865f2' }}" style="height: 40px; padding: 4px; cursor: pointer;">
+                        <span style="font-size: 12px; color: var(--text-muted);">Acento de perfil</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Estado Personalizado</label>
+                <input type="text" name="custom_status" class="form-control" value="{{ request.user.profile.custom_status }}" placeholder="Ej: Programando en Django 💻, En reunión 🚀">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Sobre Mí / Biografía</label>
+                <textarea name="bio" class="form-control" rows="3" placeholder="Cuéntale a tu equipo sobre ti, tus tecnologías o proyectos...">{{ request.user.profile.bio }}</textarea>
+            </div>
+
+            <div class="form-group" style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 14px;">
+                <label class="form-label">Cambiar Contraseña (Opcional)</label>
+                <input type="password" name="new_password" class="form-control" placeholder="Dejar en blanco para mantener la contraseña actual">
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" onclick="closeProfileModal()">Cancelar</button>
+                <button type="submit" class="btn-primary">Guardar Cambios</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Tarjeta Emergente de Perfil (Popout Card estilo Discord) -->
+<div class="modal-overlay" id="userProfileCardModal" onclick="if(event.target===this)closeUserProfileCard()">
+    <div class="profile-card-container">
+        <div class="profile-card-banner" id="profileCardBanner"></div>
+        <div class="profile-card-body">
+            <div class="profile-card-avatar-wrapper">
+                <div class="profile-card-avatar" id="profileCardAvatar">A</div>
+            </div>
+            <div class="profile-card-names">
+                <div class="profile-card-display-name" id="profileCardDisplayName">Usuario</div>
+                <div class="profile-card-username" id="profileCardUsername">@usuario</div>
+                <div class="profile-card-badge">💻 Desarrollador</div>
+            </div>
+
+            <div class="profile-card-divider"></div>
+
+            <div class="profile-card-section-title">Estado</div>
+            <div class="profile-card-text" id="profileCardStatus">Sin estado</div>
+
+            <div class="profile-card-divider"></div>
+
+            <div class="profile-card-section-title">Sobre Mí</div>
+            <div class="profile-card-text" id="profileCardBio">Sin biografía</div>
+
+            <div class="profile-card-divider"></div>
+
+            <div class="profile-card-meta" id="profileCardJoined">
+                📅 Miembro de DevCord
+            </div>
+            
+            <div style="margin-top: 16px; text-align: right;">
+                <button class="btn-secondary" style="padding: 6px 14px; font-size: 12.5px;" onclick="closeUserProfileCard()">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Enviar Secreto Efímero Autodestructible -->
 <div class="modal-overlay" id="secretModal">
     <div class="modal-content">
         <div class="modal-header">
@@ -280,7 +426,7 @@
     </div>
 </div>
 
-<!-- Modal 2: Compartir Snippet de Código Formateado -->
+<!-- Modal: Compartir Snippet de Código Formateado -->
 <div class="modal-overlay" id="codeModal">
     <div class="modal-content" style="width: 620px;">
         <div class="modal-header">
@@ -315,7 +461,7 @@
     </div>
 </div>
 
-<!-- Modal 3: Iniciar Mensaje Directo -->
+<!-- Modal: Iniciar Mensaje Directo -->
 <div class="modal-overlay" id="startDmModal">
     <div class="modal-content" style="width: 420px;">
         <div class="modal-header">

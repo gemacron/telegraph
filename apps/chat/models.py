@@ -1,5 +1,7 @@
 import uuid
 from django.db import models, transaction
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 from django.contrib.auth.models import User
 from django.utils import timezone
 from django.utils.html import escape
@@ -7,6 +9,41 @@ from django.core.exceptions import ValidationError
 from pygments import highlight
 from pygments.lexers import get_lexer_by_name, guess_lexer, TextLexer
 from pygments.formatters import HtmlFormatter
+
+class UserProfile(models.Model):
+    """
+    Perfil de usuario estilo Discord:
+    Manejo de avatar, display_name, biografía (about me), estado personalizado y color de banner.
+    """
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
+    display_name = models.CharField(max_length=80, blank=True, default="")
+    bio = models.TextField(max_length=300, blank=True, default="Desarrollador en DevCord")
+    custom_status = models.CharField(max_length=120, blank=True, default="Programando 💻")
+    avatar = models.ImageField(upload_to="avatars/%Y/%m/", null=True, blank=True)
+    banner_color = models.CharField(max_length=7, default="#5865f2")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def get_display_name(self):
+        return self.display_name.strip() if self.display_name else self.user.username
+
+    def get_avatar_url(self):
+        if self.avatar and hasattr(self.avatar, 'url'):
+            return self.avatar.url
+        return None
+
+    def __str__(self):
+        return f"Perfil de {self.user.username}"
+
+@receiver(post_save, sender=User)
+def create_or_save_user_profile(sender, instance, created, **kwargs):
+    if created:
+        UserProfile.objects.create(user=instance)
+    else:
+        if not hasattr(instance, 'profile'):
+            UserProfile.objects.create(user=instance)
+        else:
+            instance.profile.save()
 
 class Workspace(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

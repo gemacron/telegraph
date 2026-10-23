@@ -14,11 +14,13 @@ from django.db import transaction
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from cryptography.fernet import Fernet
+import io
+from django.core.files.base import ContentFile
 from PIL import Image
 
 from apps.chat.models import (
     Workspace, Channel, DirectConversation, Message, 
-    EphemeralSecret, Attachment, Sticker
+    EphemeralSecret, Attachment, Sticker, UserProfile
 )
 from apps.dlp.scanner import DataLossPreventionScanner
 
@@ -126,13 +128,16 @@ def dm_view(request, conversation_id):
 @require_POST
 def start_dm_view(request):
     """Inicia o busca un chat directo individual con otro usuario."""
-    target_username = request.POST.get('username')
-    target_user = get_object_or_404(User, username=target_username)
+    target_username = request.POST.get('username', '').strip()
+    target_user = User.objects.filter(username__iexact=target_username).first()
     
-    if target_user == request.user:
-        return JsonResponse({'error': 'No puedes iniciar un DM contigo mismo.'}, status=400)
+    if not target_user:
+        return redirect(request.META.get('HTTP_REFERER', 'index'))
 
-    # Buscar conversación existente
+    if target_user == request.user:
+        return redirect(request.META.get('HTTP_REFERER', 'index'))
+
+    # Buscar conversación existente entre ambos
     conversation = DirectConversation.objects.filter(participants=request.user).filter(participants=target_user).first()
     if not conversation:
         conversation = DirectConversation.objects.create()
@@ -352,3 +357,93 @@ def register_view(request):
 def logout_view(request):
     logout(request)
     return redirect('login')
+
+@login_required
+@require_POST
+def update_profile_view(request):
+    """
+    Actualiza el perfil del usuario estilo Discord:
+    Nombre para mostrar, bio, estado, color de banner y subida de avatar verificada con Pillow.
+    """
+    user = request.user
+    profile, _ = UserProfile.objects.get_or_create(user=user)
+
+    display_name = request.POST.get('display_name', '').strip()
+    bio = request.POST.get('bio', '').strip()
+    custom_status = request.POST.get('custom_status', '').strip()
+    banner_color = request.POST.get('banner_color', '#5865f2').strip()
+    avatar_file = request.FILES.get('avatar')
+
+    if display_name:
+        profile.display_name = display_name[:80]
+    profile.bio = bio[:300]
+    profile.custom_status = custom_status[:120]
+    if banner_color and banner_color.startswith('#'):
+        profile.banner_color = banner_color[:7]
+
+    # Procesamiento y validación segura de Avatar con Pillow
+    if avatar_file:
+        try:
+            img = Image.open(avatar_file)
+            img.verify()
+            avatar_file.seek(0)
+            
+            # Reabrir para redimensionar de forma óptima
+            img = Image.open(avatar_file)
+            img = img.convert('RGB')
+            img.thumbnail((256, 256), Image.Resampling.LANCZOS)
+            
+            output = io.BytesIO()
+            img.save(output, format='JPEG', quality=90)
+            output.seek(0)
+            
+            profile.avatar.save(
+                f"avatar_{user.id}.jpg",
+                ContentFile(output.read()),
+                save=False
+            )
+        except Exception:
+            return JsonResponse({'error': 'La imagen de avatar no es válida o está corrupta.'}, status=400)
+
+    profile.save()
+
+    # Cambio opcional de contraseña si se solicita
+    new_password = request.POST.get('new_password', '').strip()
+    if new_password:
+        if len(new_password) < 8:
+            return JsonResponse({'error': 'La nueva contraseña debe tener al menos 8 caracteres.'}, status=400)
+        user.set_password(new_password)
+        user.save()
+        login(request, user)  # Mantener sesión activa tras cambio
+
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.content_type == 'application/json':
+        return JsonResponse({
+            'status': 'success',
+            'display_name': profile.get_display_name(),
+            'custom_status': profile.custom_status,
+            'bio': profile.bio,
+            'banner_color': profile.banner_color,
+            'avatar_url': profile.get_avatar_url() or ''
+        })
+
+    return redirect(request.META.get('HTTP_REFERER', 'index'))
+
+@login_required
+@require_GET
+def get_user_profile_api(request, username):
+    """
+    Retorna la información del perfil para renderizar la Tarjeta de Perfil emergente (Popout Card) estilo Discord.
+    """
+    target_user = get_object_or_404(User, username=username)
+    profile, _ = UserProfile.objects.get_or_create(user=target_user)
+
+    return JsonResponse({
+        'username': target_user.username,
+        'display_name': profile.get_display_name(),
+        'custom_status': profile.custom_status,
+        'bio': profile.bio,
+        'banner_color': profile.banner_color,
+        'avatar_url': profile.get_avatar_url(),
+        'date_joined': target_user.date_joined.strftime("%d %b %Y"),
+    })
+
