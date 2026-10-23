@@ -66,6 +66,19 @@ class ChatConsumer(AsyncWebsocketConsumer):
             "created_at": msg.created_at.strftime("%H:%M")
         }
 
+    @database_sync_to_async
+    def log_security_audit(self, event_type, severity, details):
+        """Registra el evento de forma atómica e inmutable en PostgreSQL."""
+        from apps.audit.services import AuditService
+        client_ip = self.scope.get('client', ['127.0.0.1'])[0]
+        AuditService.log(
+            event_type=event_type,
+            actor=self.user,
+            severity=severity,
+            ip_address=client_ip,
+            details=details
+        )
+
     async def receive(self, text_data):
         try:
             data = json.loads(text_data)
@@ -80,6 +93,19 @@ class ChatConsumer(AsyncWebsocketConsumer):
         # 1. Inspección DLP en tiempo real (anti-fuga de datos)
         dlp_result = DataLossPreventionScanner.scan(content)
         if not dlp_result["is_safe"]:
+            # Registrar evento forense en PostgreSQL
+            await self.log_security_audit(
+                event_type='DLP_VIOLATION_BLOCKED',
+                severity='CRITICAL',
+                details={
+                    'violations': dlp_result["violations"],
+                    'room_id': self.room_id,
+                    'blocked_characters_count': len(content),
+                    'is_code': is_code,
+                    'language': language
+                }
+            )
+
             await self.send(text_data=json.dumps({
                 "type": "dlp_violation",
                 "message": "Mensaje bloqueado por DLP: se detectaron credenciales o datos confidenciales no permitidos en texto plano.",

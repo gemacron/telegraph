@@ -1,0 +1,121 @@
+{% extends 'base.html' %}
+
+{% block title %}Panel de Auditoría y Cumplimiento de Seguridad | DevCord{% endblock %}
+
+{% block content %}
+<div style="background-color: #1e1f22; min-height: 100vh; padding: 28px 40px; color: #f2f3f5; font-family: var(--font-main);">
+    <!-- Cabecera -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 18px;">
+        <div style="display: flex; align-items: center; gap: 14px;">
+            <div style="width: 44px; height: 44px; background: #f23f43; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 22px;">🛡️</div>
+            <div>
+                <h1 style="font-size: 22px; font-weight: 700;">Auditoría de Seguridad y Trazabilidad Forense</h1>
+                <p style="font-size: 13px; color: #949ba4; margin-top: 2px;">
+                    Registros inmutables persistidos en PostgreSQL (Append-Only) para cumplimiento y prevención de fuga de datos.
+                </p>
+            </div>
+        </div>
+        <div style="display: flex; gap: 12px;">
+            <a href="{% url 'index' %}" class="btn-primary" style="text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+                💬 Volver al Chat
+            </a>
+        </div>
+    </div>
+
+    <!-- Métricas Clave de Seguridad -->
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-bottom: 28px;">
+        <div style="background: #2b2d31; border: 1px solid #3f4147; padding: 18px; border-radius: 8px;">
+            <div style="font-size: 12px; font-weight: 700; color: #949ba4; text-transform: uppercase;">Total Registros en PostgreSQL</div>
+            <div style="font-size: 28px; font-weight: 700; color: #f2f3f5; margin-top: 6px;">{{ total_logs }}</div>
+            <div style="font-size: 11.5px; color: #23a55a; margin-top: 4px;">● Inmutables (Append-Only)</div>
+        </div>
+        <div style="background: #2b2d31; border: 1px solid rgba(242,63,67,0.4); padding: 18px; border-radius: 8px;">
+            <div style="font-size: 12px; font-weight: 700; color: #ff7b72; text-transform: uppercase;">Fugas DLP Bloqueadas</div>
+            <div style="font-size: 28px; font-weight: 700; color: #f23f43; margin-top: 6px;">{{ dlp_blocks }}</div>
+            <div style="font-size: 11.5px; color: #949ba4; margin-top: 4px;">Tokens, claves privadas y passwords</div>
+        </div>
+        <div style="background: #2b2d31; border: 1px solid rgba(240,178,50,0.4); padding: 18px; border-radius: 8px;">
+            <div style="font-size: 12px; font-weight: 700; color: #f0b232; text-transform: uppercase;">Secretos Efímeros / Quemados</div>
+            <div style="font-size: 28px; font-weight: 700; color: #f0b232; margin-top: 6px;">{{ secret_events }}</div>
+            <div style="font-size: 11.5px; color: #949ba4; margin-top: 4px;">Burn-on-read y expiraciones</div>
+        </div>
+        <div style="background: #2b2d31; border: 1px solid rgba(88,101,242,0.4); padding: 18px; border-radius: 8px;">
+            <div style="font-size: 12px; font-weight: 700; color: #89b4fa; text-transform: uppercase;">Fallos de Autenticación</div>
+            <div style="font-size: 28px; font-weight: 700; color: #89b4fa; margin-top: 6px;">{{ auth_fails }}</div>
+            <div style="font-size: 11.5px; color: #949ba4; margin-top: 4px;">Monitor de fuerza bruta</div>
+        </div>
+    </div>
+
+    <!-- Tabla Forense de Auditoría -->
+    <div style="background: #2b2d31; border-radius: 8px; border: 1px solid #3f4147; overflow: hidden;">
+        <div style="padding: 16px 20px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: space-between; align-items: center;">
+            <h2 style="font-size: 16px; font-weight: 700;">Últimos Eventos de Seguridad Registrados</h2>
+            <span style="font-size: 12px; color: #949ba4;">Trazabilidad completa con dirección IP y detalles en JSON</span>
+        </div>
+
+        <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13.5px;">
+                <thead>
+                    <tr style="background: #232428; color: #949ba4; border-bottom: 1px solid #3f4147;">
+                        <th style="padding: 12px 18px; font-weight: 600;">Timestamp UTC</th>
+                        <th style="padding: 12px 18px; font-weight: 600;">Severidad</th>
+                        <th style="padding: 12px 18px; font-weight: 600;">Tipo de Evento</th>
+                        <th style="padding: 12px 18px; font-weight: 600;">Actor</th>
+                        <th style="padding: 12px 18px; font-weight: 600;">Dirección IP</th>
+                        <th style="padding: 12px 18px; font-weight: 600;">Detalles Forenses</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in recent_logs %}
+                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.15s;" onmouseover="this.style.background='rgba(255,255,255,0.03)'" onmouseout="this.style.background='transparent'">
+                            <td style="padding: 12px 18px; color: #949ba4; font-family: var(--font-code); font-size: 12px;">
+                                {{ log.timestamp|date:"Y-m-d H:i:s" }}
+                            </td>
+                            <td style="padding: 12px 18px;">
+                                {% if log.severity == 'CRITICAL' %}
+                                    <span style="background: rgba(242,63,67,0.2); color: #ff7b72; border: 1px solid #f23f43; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">
+                                        🚨 CRÍTICO
+                                    </span>
+                                {% elif log.severity == 'WARNING' %}
+                                    <span style="background: rgba(240,178,50,0.2); color: #f0b232; border: 1px solid #f0b232; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">
+                                        ⚠️ ALERTA
+                                    </span>
+                                {% else %}
+                                    <span style="background: rgba(35,165,90,0.2); color: #23a55a; border: 1px solid #23a55a; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">
+                                        ℹ️ INFO
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td style="padding: 12px 18px; font-weight: 600; color: #f2f3f5;">
+                                {{ log.get_event_type_display }}
+                            </td>
+                            <td style="padding: 12px 18px; color: #dbdee1;">
+                                {% if log.actor %}
+                                    <strong>@{{ log.actor.username }}</strong>
+                                {% else %}
+                                    <span style="color: #949ba4;">Sistema / Anónimo</span>
+                                {% endif %}
+                            </td>
+                            <td style="padding: 12px 18px; font-family: var(--font-code); color: #89b4fa; font-size: 12.5px;">
+                                {{ log.ip_address|default:"127.0.0.1" }}
+                            </td>
+                            <td style="padding: 12px 18px;">
+                                <details style="cursor: pointer;">
+                                    <summary style="color: #5865f2; font-size: 12px; font-weight: 600;">Ver payload JSON</summary>
+                                    <pre style="background: #111214; padding: 8px; border-radius: 4px; margin-top: 6px; font-size: 11px; color: #a6e3a1; font-family: var(--font-code); max-width: 380px; overflow-x: auto;">{{ log.details }}</pre>
+                                </details>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="6" style="padding: 30px; text-align: center; color: #949ba4;">
+                                No hay eventos de seguridad registrados hasta el momento.
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

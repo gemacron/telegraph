@@ -9,6 +9,17 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-devcord_db}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres_secure_pass}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
+    command: 
+      - "postgres"
+      - "-c"
+      - "password_encryption=scram-sha-256"
+      - "-c"
+      - "log_connections=on"
+      - "-c"
+      - "log_disconnections=on"
+      - "-c"
+      - "log_statement=ddl"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -17,7 +28,7 @@ services:
       timeout: 5s
       retries: 5
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
 
   redis:
     image: docker.io/library/redis:7-alpine

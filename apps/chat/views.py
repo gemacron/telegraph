@@ -23,6 +23,7 @@ from apps.chat.models import (
     EphemeralSecret, Attachment, Sticker, UserProfile
 )
 from apps.dlp.scanner import DataLossPreventionScanner
+from apps.audit.services import AuditService
 
 # Derivación de clave simétrica para secretos efímeros en servidor
 def get_encryption_cipher():
@@ -186,6 +187,22 @@ def create_ephemeral_secret_api(request):
         expires_at=expires_at
     )
 
+    # Registro forense en PostgreSQL
+    AuditService.log(
+        event_type='SECRET_CREATED',
+        actor=request.user,
+        severity='INFO',
+        request=request,
+        details={
+            'secret_id': str(secret.id),
+            'title': secret.title,
+            'burn_on_read': secret.burn_on_read,
+            'ttl_minutes': ttl_minutes,
+            'expires_at': secret.expires_at.strftime("%Y-%m-%d %H:%M:%S UTC"),
+            'room_id': str(room_id)
+        }
+    )
+
     # Notificar a la sala por WebSocket para renderizar la tarjeta autodestructible
     channel_layer = get_channel_layer()
     if channel_layer:
@@ -223,12 +240,29 @@ def reveal_ephemeral_secret_api(request, secret_id):
             'error': 'Este secreto ya ha sido destruido o expiró permanentemente por políticas de seguridad.'
         }, status=410)
 
+    author_username = secret.author.username
+    secret_title = secret.title
+
     # Acceso atómico y purga
     payload_encrypted, destroyed = secret.access_and_burn()
     if not payload_encrypted:
         return JsonResponse({
             'error': 'El secreto ya no está disponible.'
         }, status=410)
+
+    # Registro de auditoría del acceso y autodestrucción
+    AuditService.log(
+        event_type='SECRET_REVEALED',
+        actor=request.user,
+        severity='WARNING' if destroyed else 'INFO',
+        request=request,
+        details={
+            'secret_id': str(secret_id),
+            'title': secret_title,
+            'author': author_username,
+            'purged_from_postgresql': destroyed
+        }
+    )
 
     # Descifrado en memoria
     try:
@@ -319,8 +353,22 @@ def login_view(request):
         user = authenticate(request, username=u, password=p)
         if user:
             login(request, user)
+            AuditService.log(
+                event_type='AUTH_LOGIN_SUCCESS',
+                actor=user,
+                severity='INFO',
+                request=request,
+                details={'username': user.username}
+            )
             return redirect('index')
         else:
+            AuditService.log(
+                event_type='AUTH_LOGIN_FAILED',
+                actor=None,
+                severity='WARNING',
+                request=request,
+                details={'attempted_username': u}
+            )
             error = "Credenciales incorrectas."
 
     return render(request, 'auth/login.html', {'error': error})

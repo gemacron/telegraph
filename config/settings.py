@@ -19,6 +19,7 @@ INSTALLED_APPS = [
     'channels',
     'apps.chat',
     'apps.dlp',
+    'apps.audit',
 ]
 
 MIDDLEWARE = [
@@ -52,7 +53,7 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 ASGI_APPLICATION = 'config.asgi.application'
 
-# Configuración de base de datos (PostgreSQL por defecto en Podman/Prod, con fallback a SQLite para dev local rápido en Windows)
+# Configuración de base de datos (PostgreSQL nativo blindado en Podman / Producción)
 DB_ENGINE = os.getenv('DB_ENGINE', 'postgresql')
 
 if DB_ENGINE == 'sqlite':
@@ -71,6 +72,11 @@ else:
             'PASSWORD': os.getenv('POSTGRES_PASSWORD', 'postgres'),
             'HOST': os.getenv('POSTGRES_HOST', 'localhost'),
             'PORT': os.getenv('POSTGRES_PORT', '5432'),
+            'CONN_MAX_AGE': 600,
+            'OPTIONS': {
+                # Timeouts de sentencias en PostgreSQL para prevenir DoS y sesiones colgadas
+                'options': '-c statement_timeout=30000 -c idle_in_transaction_session_timeout=60000',
+            },
         }
     }
 
