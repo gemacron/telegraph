@@ -1,0 +1,206 @@
+import uuid
+from django.db import models, transaction
+from django.contrib.auth.models import User
+from django.utils import timezone
+from django.utils.html import escape
+from django.core.exceptions import ValidationError
+from pygments import highlight
+from pygments.lexers import get_lexer_by_name, guess_lexer, TextLexer
+from pygments.formatters import HtmlFormatter
+
+class Workspace(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=100)
+    slug = models.SlugField(unique=True)
+    description = models.TextField(blank=True, default="")
+    icon = models.ImageField(upload_to="workspaces/icons/", null=True, blank=True)
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name="owned_workspaces", null=True, blank=True)
+    members = models.ManyToManyField(User, related_name="workspaces", blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.name
+
+class Channel(models.Model):
+    CHANNEL_TYPES = [
+        ('text', 'Texto y Código'),
+        ('announcement', 'Anuncios'),
+        ('devops', 'DevOps & Logs'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE, related_name="channels")
+    name = models.CharField(max_length=80)
+    topic = models.CharField(max_length=255, blank=True, default="")
+    channel_type = models.CharField(max_length=20, choices=CHANNEL_TYPES, default='text')
+    is_private = models.BooleanField(default=False)
+    allowed_members = models.ManyToManyField(User, related_name="private_channels", blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('workspace', 'name')
+
+    def __str__(self):
+        return f"#{self.name} ({self.workspace.name})"
+
+class DirectConversation(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    participants = models.ManyToManyField(User, related_name="direct_conversations")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def get_other_participant(self, current_user):
+        return self.participants.exclude(id=current_user.id).first()
+
+    def __str__(self):
+        users = ", ".join([u.username for u in self.participants.all()[:2]])
+        return f"DM: {users}"
+
+class Message(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    channel = models.ForeignKey(Channel, on_delete=models.CASCADE, null=True, blank=True, related_name="messages")
+    direct_conversation = models.ForeignKey(DirectConversation, on_delete=models.CASCADE, null=True, blank=True, related_name="messages")
+    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name="sent_messages")
+    content = models.TextField(help_text="Texto con soporte de código y markdown")
+    
+    # Manejo de snippets de código para desarrolladores
+    is_code_snippet = models.BooleanField(default=False)
+    code_language = models.CharField(max_length=30, blank=True, default="")
+    formatted_code_html = models.TextField(blank=True, default="")
+    
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['created_at']
+
+    def render_syntax_highlighting(self):
+        """Genera HTML resaltado usando Pygments nativo y seguro sin llamadas externas."""
+        if not self.is_code_snippet and "```" not in self.content:
+            return ""
+
+        code_to_highlight = self.content
+        lang = self.code_language.lower().strip() if self.code_language else ""
+
+        # Si viene en bloque tipo ```python ... ```
+        if "```" in self.content and not self.is_code_snippet:
+            parts = self.content.split("```")
+            if len(parts) >= 3:
+                first_line_end = parts[1].find("\n")
+                if first_line_end != -1:
+                    detected_lang = parts[1][:first_line_end].strip()
+                    if detected_lang:
+                        lang = detected_lang
+                    code_to_highlight = parts[1][first_line_end + 1:]
+                else:
+                    code_to_highlight = parts[1]
+
+        try:
+            if lang:
+                lexer = get_lexer_by_name(lang, stripall=True)
+            else:
+                lexer = guess_lexer(code_to_highlight)
+        except Exception:
+            lexer = TextLexer()
+
+        formatter = HtmlFormatter(
+            nowrap=False,
+            cssclass="highlight-code",
+            linespans="line",
+            linenos=True
+        )
+        return highlight(code_to_highlight, lexer, formatter)
+
+    def save(self, *args, **kwargs):
+        if self.is_code_snippet or "```" in self.content:
+            self.formatted_code_html = self.render_syntax_highlighting()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        dest = self.channel.name if self.channel else "DM"
+        return f"[{dest}] {self.author.username}: {self.content[:30]}"
+
+class EphemeralSecret(models.Model):
+    """
+    Mensaje efímero autodestructible (Burn-After-Reading).
+    Permite enviar contraseñas, variables de entorno (.env) o llaves de API
+    con borrado físico e irreversible en PostgreSQL tras ser leído o tras expirar.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    channel = models.ForeignKey(Channel, on_delete=models.CASCADE, null=True, blank=True, related_name="ephemeral_secrets")
+    direct_conversation = models.ForeignKey(DirectConversation, on_delete=models.CASCADE, null=True, blank=True, related_name="ephemeral_secrets")
+    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name="created_secrets")
+    title = models.CharField(max_length=120, default="Dato Sensible Confidencial")
+    
+    # Payload cifrado con criptografía simétrica (Fernet o AES-GCM)
+    encrypted_payload = models.TextField(help_text="Payload cifrado en servidor o cliente")
+    
+    # Políticas de autodestrucción
+    burn_on_read = models.BooleanField(default=True, help_text="Destruir inmediatamente al primer acceso")
+    max_views = models.PositiveIntegerField(default=1)
+    view_count = models.PositiveIntegerField(default=0)
+    expires_at = models.DateTimeField(db_index=True)
+    is_destroyed = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def is_expired(self):
+        return timezone.now() >= self.expires_at
+
+    @transaction.atomic
+    def access_and_burn(self):
+        """
+        Operación atómica en PostgreSQL:
+        Incrementa el contador. Si cumple la condición de quemado o expiración,
+        purga el registro de la base de datos de manera irreversible.
+        """
+        secret_lock = EphemeralSecret.objects.select_for_update().filter(id=self.id).first()
+        if not secret_lock or secret_lock.is_destroyed:
+            return None, True  # Ya fue destruido
+
+        if secret_lock.is_expired():
+            secret_lock.is_destroyed = True
+            secret_lock.encrypted_payload = ""
+            secret_lock.delete()
+            return None, True
+
+        secret_lock.view_count += 1
+        payload = secret_lock.encrypted_payload
+
+        # Si es burn_on_read o alcanzó el límite de visualizaciones, se elimina físicamente
+        if secret_lock.burn_on_read or secret_lock.view_count >= secret_lock.max_views:
+            secret_lock.is_destroyed = True
+            secret_lock.encrypted_payload = ""
+            secret_lock.delete()
+            return payload, True
+        else:
+            secret_lock.save(update_fields=['view_count'])
+            return payload, False
+
+class Sticker(models.Model):
+    """Stickers locales almacenados internamente sin dependencias externas."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=50)
+    category = models.CharField(max_length=50, default="Dev")
+    image = models.ImageField(upload_to="stickers/")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.category}:{self.name}"
+
+class Attachment(models.Model):
+    """Archivos adjuntos con validación estricta de seguridad en PostgreSQL."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    message = models.ForeignKey(Message, on_delete=models.CASCADE, null=True, blank=True, related_name="attachments")
+    file = models.FileField(upload_to="attachments/%Y/%m/")
+    filename = models.CharField(max_length=255, default="")
+    content_type = models.CharField(max_length=100)
+    file_size_bytes = models.BigIntegerField()
+    is_image = models.BooleanField(default=False)
+    is_sticker = models.BooleanField(default=False)
+    is_local_gif = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def clean(self):
+        # Prevención de archivos ejecutables peligrosos (.exe, .sh, .bat, .php, etc.)
+        dangerous_extensions = ('.exe', '.sh', '.bat', '.cmd', '.py', '.php', '.phtml', '.js', '.vbs')
+        if any(self.file.name.lower().endswith(ext) for ext in dangerous_extensions):
+            raise ValidationError("Tipo de archivo no permitido por directiva de seguridad DLP.")
+

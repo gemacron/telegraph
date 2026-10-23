@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  db:
+    image: docker.io/library/postgres:16-alpine
+    container_name: devcord_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-devcord_db}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres_secure_pass}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-devcord_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: docker.io/library/redis:7-alpine
+    container_name: devcord_redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+
+  app:
+    build:
+      context: .
+      dockerfile: Containerfile
+    container_name: devcord_app
+    restart: unless-stopped
+    depends_on:
+      - db
+      - redis
+    environment:
+      DJANGO_DEBUG: "True"
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-insecure-key-for-local-dev-mode-change-in-prod}
+      DJANGO_ALLOWED_HOSTS: "*"
+      POSTGRES_DB: ${POSTGRES_DB:-devcord_db}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres_secure_pass}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      CHANNEL_BACKEND: redis
+      SECRET_ENCRYPTION_KEY: ${SECRET_ENCRYPTION_KEY:-vG7s1Ue8Q1fK9W3sM4vP6xZ8rA2dF5hJ7kL9mN1qR3t=}
+    volumes:
+      - media_data:/app/media
+    ports:
+      - "8000:8000"
+
+volumes:
+  postgres_data:
+  redis_data:
+  media_data:

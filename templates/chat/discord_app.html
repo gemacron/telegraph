@@ -1,0 +1,368 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}
+    {% if is_direct %}
+        @{{ other_user.username }} | DevCord
+    {% else %}
+        #{{ active_channel.name }} | {{ workspace.name }}
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="app-container">
+    <!-- 1. Barra de Workspaces / Servidores -->
+    <nav class="servers-sidebar" aria-label="Workspaces">
+        <a href="{% url 'index' %}" class="server-icon active" title="{{ workspace.name|default:'DevCord Workspace' }}">
+            {% if workspace.icon %}
+                <img src="{{ workspace.icon.url }}" alt="Icon" style="width:100%;height:100%;border-radius:inherit;object-fit:cover;">
+            {% else %}
+                ⚡
+            {% endif %}
+        </a>
+        <div class="server-separator"></div>
+        <div class="server-icon" title="Añadir Servidor (Próximamente)">+</div>
+    </nav>
+
+    <!-- 2. Barra de Canales y DMs -->
+    <aside class="channels-sidebar">
+        <header class="workspace-header">
+            <span>{{ workspace.name|default:"DevCord Workspace" }}</span>
+            <span style="font-size: 13px; color: var(--accent-success);">● Online</span>
+        </header>
+
+        <div class="channels-scroll">
+            <!-- Canales de Texto y Código -->
+            <div class="section-label">
+                <span>Canales de Desarrollo</span>
+                <span style="cursor: pointer;" title="Canales del equipo">#</span>
+            </div>
+            {% for ch in channels %}
+                <a href="{% url 'channel_view' ch.id %}" class="channel-item {% if not is_direct and ch.id == active_channel.id %}active{% endif %}">
+                    <span class="channel-hash">#</span>
+                    <span>{{ ch.name }}</span>
+                </a>
+            {% empty %}
+                <div style="font-size: 12px; color: var(--text-muted); padding: 8px;">No hay canales disponibles.</div>
+            {% endfor %}
+
+            <!-- Mensajes Directos (DMs) -->
+            <div class="section-label" style="margin-top: 16px;">
+                <span>Mensajes Directos</span>
+                <button class="btn-icon" onclick="openStartDmModal()" title="Iniciar DM">+</button>
+            </div>
+            {% for dm in direct_conversations %}
+                {% with other=dm|default_if_none:None %}
+                    <a href="{% url 'dm_view' dm.id %}" class="channel-item {% if is_direct and dm.id == active_conversation.id %}active{% endif %}">
+                        <span class="dm-status-dot"></span>
+                        <span>
+                            {% for p in dm.participants.all %}
+                                {% if p != request.user %}{{ p.username }}{% endif %}
+                            {% endfor %}
+                        </span>
+                    </a>
+                {% endwith %}
+            {% empty %}
+                <div style="font-size: 12px; color: var(--text-muted); padding: 8px;">Sin chats individuales.</div>
+            {% endfor %}
+        </div>
+
+        <!-- Panel de Usuario inferior -->
+        <div class="user-panel">
+            <div class="user-info">
+                <div class="user-avatar-sm">{{ request.user.username|make_list|first|upper }}</div>
+                <div>
+                    <div class="user-name-tag">{{ request.user.username }}</div>
+                    <div style="font-size: 11px; color: var(--accent-success);">En línea</div>
+                </div>
+            </div>
+            <div>
+                <a href="{% url 'logout' %}" class="btn-icon" title="Cerrar Sesión">🚪</a>
+            </div>
+        </div>
+    </aside>
+
+    <!-- 3. Área Central del Chat -->
+    <main class="chat-main">
+        <header class="chat-header">
+            <div class="header-title-group">
+                <span class="channel-hash">{% if is_direct %}@{% else %}#{% endif %}</span>
+                <span class="header-title">
+                    {% if is_direct %}{{ other_user.username }}{% else %}{{ active_channel.name }}{% endif %}
+                </span>
+                {% if not is_direct and active_channel.topic %}
+                    <span class="header-topic">{{ active_channel.topic }}</span>
+                {% endif %}
+            </div>
+
+            <!-- Acciones rápidas en la cabecera -->
+            <div class="header-actions">
+                <button class="btn-badge-action btn-badge-danger" onclick="openSecretModal()" title="Enviar contraseña o token con autodestrucción">
+                    🔒 Secreto Seguro (DLP)
+                </button>
+                <button class="btn-badge-action" onclick="openCodeModal()" title="Compartir fragmento de código formateado">
+                    💻 Compartir Código
+                </button>
+            </div>
+        </header>
+
+        <!-- Banner de alerta preventiva DLP -->
+        <div class="dlp-alert-banner" id="dlpAlert">
+            <div class="dlp-alert-content">
+                <span style="font-size: 20px;">🛡️</span>
+                <div>
+                    <strong id="dlpMessage">Alerta de Seguridad DLP:</strong>
+                    <div id="dlpRulesList" style="display: flex; gap: 6px; margin-top: 4px;"></div>
+                </div>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button class="btn-badge-action" style="background:#fff; color:#000;" onclick="openSecretModal()">
+                    Enviar como Secreto Efímero
+                </button>
+                <button class="btn-icon" style="color: #fff;" onclick="this.closest('#dlpAlert').style.display='none'">✕</button>
+            </div>
+        </div>
+
+        <!-- Mensajes del canal / DM -->
+        <section class="messages-container" id="messagesContainer">
+            <!-- Secretos efímeros activos que aún no han sido destruidos -->
+            {% for secret in active_secrets %}
+                <div class="message-card">
+                    <div class="msg-avatar">🔒</div>
+                    <div class="msg-body">
+                        <div class="msg-meta">
+                            <span class="msg-author">{{ secret.author.username }}</span>
+                            <span class="msg-time">{{ secret.created_at|date:"H:i" }}</span>
+                        </div>
+                        <div class="secret-card" id="secretBox_{{ secret.id }}">
+                            <div class="secret-header">
+                                <span>🛡️ {{ secret.title }}</span>
+                            </div>
+                            <div class="secret-desc">
+                                Este mensaje contiene datos confidenciales cifrados.
+                                {% if secret.burn_on_read %}
+                                    Se destruirá de forma permanente e irreversible de PostgreSQL tras el primer acceso.
+                                {% else %}
+                                    Expirará automáticamente a las {{ secret.expires_at|date:"H:i:s" }} UTC.
+                                {% endif %}
+                            </div>
+                            <button class="btn-reveal-secret" onclick="revealSecret('{{ secret.id }}')">
+                                🔓 Revelar Secreto
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+
+            <!-- Historial de mensajes -->
+            {% for msg in messages %}
+                <div class="message-card">
+                    <div class="msg-avatar">{{ msg.author.username|make_list|first|upper }}</div>
+                    <div class="msg-body">
+                        <div class="msg-meta">
+                            <span class="msg-author">{{ msg.author.username }}</span>
+                            <span class="msg-time">{{ msg.created_at|date:"H:i" }}</span>
+                        </div>
+                        {% if msg.attachments.all %}
+                            <div class="msg-content">{{ msg.content }}</div>
+                            {% for att in msg.attachments.all %}
+                                {% if att.is_image %}
+                                    <img src="{{ att.file.url }}" class="attachment-preview" alt="Adjunto">
+                                {% else %}
+                                    <a href="{{ att.file.url }}" class="btn-badge-action" download style="margin-top: 6px;">
+                                        📎 Descargar {{ att.filename }}
+                                    </a>
+                                {% endif %}
+                            {% endfor %}
+                        {% elif msg.is_code_snippet and msg.formatted_code_html %}
+                            <div class="code-container">
+                                <div class="code-header">
+                                    <span>{{ msg.code_language|default:"Code" }}</span>
+                                    <button class="btn-copy" onclick="copyCode(this)">Copiar</button>
+                                </div>
+                                {{ msg.formatted_code_html|safe }}
+                            </div>
+                        {% elif msg.formatted_code_html %}
+                            {{ msg.formatted_code_html|safe }}
+                        {% else %}
+                            <div class="msg-content">{{ msg.content }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+            {% empty %}
+                <div style="text-align: center; color: var(--text-muted); margin: auto;">
+                    <div style="font-size: 32px; margin-bottom: 8px;">🚀</div>
+                    <h3>Comienza la conversación en {% if is_direct %}el chat directo con @{{ other_user.username }}{% else %}#{{ active_channel.name }}{% endif %}</h3>
+                    <p style="font-size: 13px; margin-top: 4px;">Tus mensajes están protegidos por el motor de prevención de fugas DLP.</p>
+                </div>
+            {% endfor %}
+        </section>
+
+        <!-- Barra inferior de envío de mensajes -->
+        <footer class="chat-input-area">
+            <div class="chat-input-box">
+                <div class="chat-input-actions-bar">
+                    <label class="input-action-btn" title="Adjuntar Imagen o Icono">
+                        📎 <span>Adjuntar</span>
+                        <input type="file" id="fileUploadInput" accept="image/png,image/jpeg,image/gif,image/webp" style="display: none;">
+                    </label>
+                    <button class="input-action-btn" onclick="openCodeModal()" title="Insertar bloque de código">
+                        💻 <span>Código</span>
+                    </button>
+                    <button class="input-action-btn" style="color: #ff7b72;" onclick="openSecretModal()" title="Enviar secreto efímero con autodestrucción">
+                        🔒 <span>Secreto Efímero</span>
+                    </button>
+                </div>
+                <textarea 
+                    id="chatInput" 
+                    class="chat-textarea" 
+                    placeholder="Enviar mensaje en {% if is_direct %}@{{ other_user.username }}{% else %}#{{ active_channel.name }}{% endif %} (Enter para enviar, Shift+Enter para salto de línea)..."
+                ></textarea>
+            </div>
+        </footer>
+    </main>
+
+    <!-- 4. Barra Lateral de Miembros -->
+    <aside class="members-sidebar">
+        <div class="section-label">Miembros — {{ members.count }}</div>
+        {% for m in members %}
+            <div class="member-item" onclick="startDmWith('{{ m.username }}')" title="Conversar con {{ m.username }}">
+                <div class="member-avatar">
+                    {{ m.username|make_list|first|upper }}
+                    <span class="member-status"></span>
+                </div>
+                <span class="member-name">{{ m.username }}</span>
+            </div>
+        {% endfor %}
+    </aside>
+</div>
+
+<!-- Modal 1: Crear Secreto Efímero Autodestructible -->
+<div class="modal-overlay" id="secretModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title">🔒 Enviar Secreto Efímero Cifrado</h3>
+            <button class="modal-close" onclick="closeSecretModal()">✕</button>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Título del Secreto / Contexto</label>
+            <input type="text" id="secretTitle" class="form-control" placeholder="Ej: Contraseña de DB Staging, Token de API, .env">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Dato Sensible / Contraseña / Credencial</label>
+            <textarea id="secretInputText" class="form-control" rows="4" placeholder="Pega aquí la clave secreta o contraseña. Se cifrará y no quedará en texto plano."></textarea>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+                <label class="form-label">Tiempo de Vida (TTL)</label>
+                <select id="secretTtl" class="form-control">
+                    <option value="5">5 minutos</option>
+                    <option value="15">15 minutos</option>
+                    <option value="60" selected>1 hora</option>
+                    <option value="1440">24 horas</option>
+                </select>
+            </div>
+            <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin-top: 24px;">
+                <input type="checkbox" id="secretBurnOnRead" checked style="width: 18px; height: 18px; accent-color: var(--accent-danger);">
+                <label for="secretBurnOnRead" style="font-size: 13px; font-weight: 600; cursor: pointer;">Autodestruir al leer (1 acceso)</label>
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="closeSecretModal()">Cancelar</button>
+            <button class="btn-primary" style="background: var(--accent-danger);" onclick="submitEphemeralSecret()">
+                Cifrar y Enviar Secreto
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal 2: Compartir Snippet de Código Formateado -->
+<div class="modal-overlay" id="codeModal">
+    <div class="modal-content" style="width: 620px;">
+        <div class="modal-header">
+            <h3 class="modal-title">💻 Compartir Fragmento de Código</h3>
+            <button class="modal-close" onclick="closeCodeModal()">✕</button>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Lenguaje de Programación</label>
+            <select id="codeLanguageSelect" class="form-control">
+                <option value="python">Python</option>
+                <option value="javascript">JavaScript</option>
+                <option value="typescript">TypeScript</option>
+                <option value="go">Go</option>
+                <option value="rust">Rust</option>
+                <option value="sql">SQL / PostgreSQL</option>
+                <option value="bash">Bash / Shell</option>
+                <option value="html">HTML</option>
+                <option value="css">CSS</option>
+                <option value="json">JSON</option>
+                <option value="docker">Dockerfile</option>
+                <option value="yaml">YAML</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Código Fuente</label>
+            <textarea id="codeSnippetText" class="form-control" style="font-family: var(--font-code); font-size: 13px;" rows="8" placeholder="Escribe o pega aquí el código fuente..."></textarea>
+        </div>
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="closeCodeModal()">Cancelar</button>
+            <button class="btn-primary" onclick="submitCodeSnippet()">Publicar Código</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal 3: Iniciar DM rápido -->
+<div class="modal-overlay" id="startDmModal">
+    <div class="modal-content" style="width: 400px;">
+        <div class="modal-header">
+            <h3 class="modal-title">💬 Iniciar Mensaje Directo</h3>
+            <button class="modal-close" onclick="document.getElementById('startDmModal').style.display='none'">✕</button>
+        </div>
+        <form method="POST" action="{% url 'start_dm' %}">
+            {% csrf_token %}
+            <div class="form-group">
+                <label class="form-label">Usuario destinatario</label>
+                <input type="text" name="username" class="form-control" placeholder="Nombre de usuario exacto" required>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" onclick="document.getElementById('startDmModal').style.display='none'">Cancelar</button>
+                <button type="submit" class="btn-primary">Abrir Chat</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    window.DEV_ROOM_ID = "{{ room_id }}";
+    window.DEV_CURRENT_USER = "{{ request.user.username }}";
+    window.DEV_CSRF_TOKEN = "{{ csrf_token }}";
+
+    function openStartDmModal() {
+        document.getElementById('startDmModal').style.display = 'flex';
+    }
+
+    function startDmWith(username) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '{% url "start_dm" %}';
+        
+        const csrfInput = document.createElement('input');
+        csrfInput.type = 'hidden';
+        csrfInput.name = 'csrfmiddlewaretoken';
+        csrfInput.value = window.DEV_CSRF_TOKEN;
+        
+        const userInput = document.createElement('input');
+        userInput.type = 'hidden';
+        userInput.name = 'username';
+        userInput.value = username;
+
+        form.appendChild(csrfInput);
+        form.appendChild(userInput);
+        document.body.appendChild(form);
+        form.submit();
+    }
+</script>
+<script src="{% static 'js/discord.js' %}"></script>
+{% endblock %}

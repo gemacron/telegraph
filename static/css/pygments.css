@@ -1,0 +1,38 @@
+/* Estilos de sintaxis Pygments (Tema Dracula / OneDark para desarrolladores) */
+.highlight-code {
+    background: #1e1e2e;
+    color: #cdd6f4;
+    border-radius: 8px;
+    padding: 12px;
+    margin: 8px 0;
+    overflow-x: auto;
+    font-family: 'Consolas', 'Fira Code', 'Monaco', 'Courier New', monospace;
+    font-size: 13.5px;
+    border: 1px solid #313244;
+}
+
+.highlight-code pre {
+    margin: 0;
+    padding: 0;
+    line-height: 1.5;
+}
+
+.highlight-code .line {
+    display: block;
+}
+
+.highlight-code .lineno {
+    color: #6c7086;
+    padding-right: 12px;
+    user-select: none;
+}
+
+/* Tokens de sintaxis */
+.highlight-code .k, .highlight-code .kd, .highlight-code .kn, .highlight-code .kp, .highlight-code .kr { color: #cba6f7; font-weight: bold; } /* Keywords */
+.highlight-code .s, .highlight-code .s1, .highlight-code .s2, .highlight-code .sb, .highlight-code .sc { color: #a6e3a1; } /* Strings */
+.highlight-code .nf, .highlight-code .fm { color: #89b4fa; } /* Functions */
+.highlight-code .nc, .highlight-code .nn { color: #f9e2af; } /* Classes / Namespaces */
+.highlight-code .c, .highlight-code .c1, .highlight-code .cm { color: #6c7086; font-style: italic; } /* Comments */
+.highlight-code .m, .highlight-code .mi, .highlight-code .mf { color: #fab387; } /* Numbers */
+.highlight-code .o, .highlight-code .ow { color: #89dceb; } /* Operators */
+.highlight-code .nb { color: #f38ba8; } /* Builtins */
