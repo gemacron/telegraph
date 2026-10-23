@@ -114,10 +114,28 @@ document.addEventListener('DOMContentLoaded', () => {
         card.className = 'message-card';
 
         let innerContent = '';
+        let pendingLottieId = null;
+        let pendingLottieData = null;
+        let pendingLottieUrl = null;
+
         if (msg.is_sticker && msg.sticker_image_url) {
-            innerContent = `<div class="msg-sticker-wrapper">
-                                <img src="${msg.sticker_image_url}" class="msg-sticker-img" alt="${escapeHtml(msg.content)}" title="${escapeHtml(msg.content)}">
-                            </div>`;
+            if (msg.is_animated_sticker && msg.sticker_animation_type === 'webm') {
+                innerContent = `<div class="msg-sticker-wrapper">
+                                    <video class="msg-sticker-animated msg-sticker-webm" autoplay loop muted playsinline src="${msg.sticker_image_url}" title="${escapeHtml(msg.content)}"></video>
+                                </div>`;
+            } else if (msg.is_animated_sticker && (msg.sticker_animation_type === 'tgs' || msg.sticker_animation_type === 'lottie')) {
+                const lottieId = `lottie_${msg.id || Math.random().toString(36).substring(2, 9)}`;
+                pendingLottieId = lottieId;
+                pendingLottieData = msg.sticker_lottie_json;
+                pendingLottieUrl = msg.sticker_image_url;
+                innerContent = `<div class="msg-sticker-wrapper">
+                                    <div class="msg-sticker-lottie-container" id="${lottieId}" title="${escapeHtml(msg.content)}"></div>
+                                </div>`;
+            } else {
+                innerContent = `<div class="msg-sticker-wrapper">
+                                    <img src="${msg.sticker_image_url}" class="msg-sticker-img" alt="${escapeHtml(msg.content)}" title="${escapeHtml(msg.content)}">
+                                </div>`;
+            }
         } else if (msg.attachment_url) {
             innerContent = `<div class="msg-content">${escapeHtml(msg.content)}</div>
                             <img src="${msg.attachment_url}" class="attachment-preview" alt="Adjunto">`;
@@ -153,6 +171,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         messagesContainer.appendChild(card);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+        if (pendingLottieId) {
+            renderLottieItem(pendingLottieId, pendingLottieData, pendingLottieUrl);
+        }
     }
 
     // Renderizar tarjeta de Secreto Efímero Autodestructible
@@ -463,13 +485,58 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    window.sendSticker = function(stickerUrl, stickerName) {
+    // Helper de Renderizado Lottie Vectorial (Telegram TGS / Lottie JSON)
+    window.renderLottieItem = function(elementOrId, lottieJson, url) {
+        if (typeof lottie === 'undefined') return;
+        const container = typeof elementOrId === 'string' ? document.getElementById(elementOrId) : elementOrId;
+        if (!container) return;
+        container.innerHTML = '';
+        try {
+            if (lottieJson) {
+                const animData = typeof lottieJson === 'string' ? JSON.parse(lottieJson) : lottieJson;
+                lottie.loadAnimation({
+                    container: container,
+                    renderer: 'svg',
+                    loop: true,
+                    autoplay: true,
+                    animationData: animData
+                });
+            } else if (url) {
+                lottie.loadAnimation({
+                    container: container,
+                    renderer: 'svg',
+                    loop: true,
+                    autoplay: true,
+                    path: url
+                });
+            }
+        } catch (err) {
+            console.warn('[Lottie] Error cargando animación:', err);
+        }
+    };
+
+    function initExistingLottieStickers() {
+        document.querySelectorAll('.msg-sticker-lottie-container').forEach(el => {
+            const url = el.getAttribute('data-lottie-url');
+            if (url && !el.children.length) {
+                renderLottieItem(el, null, url);
+            }
+        });
+    }
+
+    // Inicializar stickers animados existentes en el historial
+    setTimeout(initExistingLottieStickers, 400);
+
+    window.sendSticker = function(stickerUrl, stickerName, isAnimated, animType, lottieJson) {
         if (!socket || socket.readyState !== WebSocket.OPEN) return;
         socket.send(JSON.stringify({
             type: 'sticker',
             is_sticker: true,
             sticker_image_url: stickerUrl,
-            content: stickerName || 'Sticker'
+            content: stickerName || 'Sticker',
+            is_animated_sticker: !!isAnimated,
+            sticker_animation_type: animType || '',
+            sticker_lottie_json: lottieJson || ''
         }));
         closeStickerPicker();
     };
@@ -485,14 +552,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.stickers && data.stickers.length > 0) {
                     data.stickers.forEach(s => {
                         const item = document.createElement('div');
-                        item.className = 'sticker-picker-item';
-                        item.title = `${s.category}: ${s.name}`;
-                        item.onclick = () => sendSticker(s.url, s.name);
+                        item.className = 'sticker-picker-item' + (s.is_animated ? ' is-animated' : '');
+                        item.title = `${s.category}: ${s.name} ${s.is_animated ? '(Telegram Animado)' : ''}`;
+                        item.onclick = () => sendSticker(s.url, s.name, s.is_animated, s.animation_type, s.lottie_json);
+
+                        let thumbHtml = '';
+                        if (s.is_animated && s.animation_type === 'webm') {
+                            thumbHtml = `<video class="sticker-thumb-video" autoplay loop muted playsinline src="${s.url}"></video>`;
+                        } else if (s.is_animated && (s.animation_type === 'tgs' || s.animation_type === 'lottie')) {
+                            thumbHtml = `<div class="sticker-thumb-lottie" id="thumb_lottie_${s.id}"></div>`;
+                        } else {
+                            thumbHtml = `<img src="${s.url}" alt="${s.name}" class="sticker-thumb">`;
+                        }
+
+                        const badgeHtml = s.is_animated ? `<span class="sticker-badge-anim">✨ Animado</span>` : '';
+
                         item.innerHTML = `
-                            <img src="${s.url}" alt="${s.name}" class="sticker-thumb">
+                            ${thumbHtml}
+                            ${badgeHtml}
                             <div class="sticker-name-label">${escapeHtml(s.name.replace(/_/g, ' '))}</div>
                         `;
                         grid.appendChild(item);
+
+                        if (s.is_animated && (s.animation_type === 'tgs' || s.animation_type === 'lottie')) {
+                            setTimeout(() => {
+                                renderLottieItem(`thumb_lottie_${s.id}`, s.lottie_json, s.url);
+                            }, 50);
+                        }
                     });
                 } else {
                     grid.innerHTML = '<div style="color: var(--text-muted); padding: 20px; grid-column: 1/-1; text-align: center;">No hay stickers disponibles.</div>';

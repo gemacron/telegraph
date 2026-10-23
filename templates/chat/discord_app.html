@@ -199,7 +199,13 @@
                         </div>
                         {% if msg.is_sticker and msg.sticker_image_url %}
                             <div class="msg-sticker-wrapper">
-                                <img src="{{ msg.sticker_image_url }}" class="msg-sticker-img" alt="{{ msg.content }}" title="{{ msg.content }}">
+                                {% if msg.is_animated_sticker and msg.sticker_animation_type == 'webm' %}
+                                    <video class="msg-sticker-animated msg-sticker-webm" autoplay loop muted playsinline src="{{ msg.sticker_image_url }}" title="{{ msg.content }}"></video>
+                                {% elif msg.is_animated_sticker and msg.sticker_animation_type in 'tgs,lottie' %}
+                                    <div class="msg-sticker-lottie-container" data-lottie-url="{{ msg.sticker_image_url }}" title="{{ msg.content }}"></div>
+                                {% else %}
+                                    <img src="{{ msg.sticker_image_url }}" class="msg-sticker-img" alt="{{ msg.content }}" title="{{ msg.content }}">
+                                {% endif %}
                             </div>
                         {% elif msg.attachments.all %}
                             <div class="msg-content">{{ msg.content }}</div>
@@ -523,10 +529,10 @@
                 <input type="text" id="customStickerCategoryInput" class="form-control" value="Equipo" placeholder="Ej: Dev, Memes, Aprobación">
             </div>
             <div class="form-group">
-                <label class="form-label">Archivo de Imagen (PNG, WebP, GIF, JPG)</label>
-                <input type="file" id="customStickerFileInput" class="form-control" accept="image/png,image/jpeg,image/webp,image/gif">
-                <small style="color: var(--text-muted); font-size: 11px; margin-top: 4px; display: block;">
-                    Se procesará y optimizará de forma segura en el servidor sin dependencias externas.
+                <label class="form-label">Archivo de Sticker (Telegram .tgs, .webm, Lottie .json, WebP, PNG, GIF)</label>
+                <input type="file" id="customStickerFileInput" class="form-control" accept=".tgs,.json,.webm,image/png,image/jpeg,image/webp,image/gif">
+                <small style="color: var(--text-muted); font-size: 11px; margin-top: 4px; display: block; line-height: 1.4;">
+                    ⚡ <strong>Compatibilidad Telegram:</strong> Admite stickers animados <code>.tgs</code> (Lottie gzip), video stickers <code>.webm</code> con transparencia, animaciones vectoriales <code>.json</code> y formatos estándar.
                 </small>
             </div>
             <div class="modal-actions" style="margin-top: 16px;">
@@ -569,5 +575,6 @@
         form.submit();
     }
 </script>
+<script src="{% static 'vendor/lottie/lottie.min.js' %}"></script>
 <script src="{% static 'js/discord.js' %}"></script>
 {% endblock %}

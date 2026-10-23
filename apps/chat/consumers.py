@@ -30,7 +30,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             )
 
     @database_sync_to_async
-    def save_chat_message(self, content, is_code=False, language="", is_sticker=False, sticker_image_url=""):
+    def save_chat_message(self, content, is_code=False, language="", is_sticker=False, sticker_image_url="", is_animated_sticker=False, sticker_animation_type="", sticker_lottie_json=""):
         """Persiste el mensaje de manera asíncrona en PostgreSQL y renderiza Pygments si aplica."""
         channel = Channel.objects.filter(id=self.room_id).first()
         direct_conv = None if channel else DirectConversation.objects.filter(id=self.room_id).first()
@@ -46,7 +46,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
             is_code_snippet=is_code,
             code_language=language or "",
             is_sticker=is_sticker,
-            sticker_image_url=sticker_image_url or ""
+            sticker_image_url=sticker_image_url or "",
+            is_animated_sticker=is_animated_sticker,
+            sticker_animation_type=sticker_animation_type or "",
+            sticker_lottie_json=sticker_lottie_json or ""
         )
         msg.save()
         
@@ -67,6 +70,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
             "formatted_code_html": msg.formatted_code_html,
             "is_sticker": msg.is_sticker,
             "sticker_image_url": msg.sticker_image_url,
+            "is_animated_sticker": msg.is_animated_sticker,
+            "sticker_animation_type": msg.sticker_animation_type,
+            "sticker_lottie_json": msg.sticker_lottie_json,
             "created_at": msg.created_at.strftime("%H:%M")
         }
 
@@ -95,13 +101,19 @@ class ChatConsumer(AsyncWebsocketConsumer):
         language = data.get('language', '')
         is_sticker = bool(data.get('is_sticker', False))
         sticker_image_url = data.get('sticker_image_url', '')
+        is_animated_sticker = bool(data.get('is_animated_sticker', False))
+        sticker_animation_type = data.get('sticker_animation_type', '')
+        sticker_lottie_json = data.get('sticker_lottie_json', '')
 
         # Si es un sticker directo
         if msg_type == 'sticker' or is_sticker:
             saved_msg = await self.save_chat_message(
                 content=content or "Sticker",
                 is_sticker=True,
-                sticker_image_url=sticker_image_url
+                sticker_image_url=sticker_image_url,
+                is_animated_sticker=is_animated_sticker,
+                sticker_animation_type=sticker_animation_type,
+                sticker_lottie_json=sticker_lottie_json
             )
             if saved_msg:
                 await self.channel_layer.group_send(

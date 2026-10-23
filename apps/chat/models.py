@@ -108,6 +108,9 @@ class Message(models.Model):
     is_sticker = models.BooleanField(default=False)
     sticker = models.ForeignKey('Sticker', on_delete=models.SET_NULL, null=True, blank=True, related_name="messages")
     sticker_image_url = models.CharField(max_length=500, blank=True, default="")
+    is_animated_sticker = models.BooleanField(default=False)
+    sticker_animation_type = models.CharField(max_length=20, blank=True, default="")
+    sticker_lottie_json = models.TextField(blank=True, default="")
     
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
@@ -217,11 +220,14 @@ class EphemeralSecret(models.Model):
             return payload, False
 
 class Sticker(models.Model):
-    """Stickers locales almacenados internamente sin dependencias externas."""
+    """Stickers locales y animados estilo Telegram almacenados internamente sin dependencias externas."""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=50)
     category = models.CharField(max_length=50, default="Dev")
-    image = models.ImageField(upload_to="stickers/")
+    image = models.FileField(upload_to="stickers/", blank=True, null=True)
+    is_animated = models.BooleanField(default=False)
+    animation_type = models.CharField(max_length=20, default="", blank=True)  # 'lottie', 'tgs', 'webm', 'gif'
+    lottie_json = models.TextField(blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
 
     def get_image_url(self):

@@ -1110,4 +1110,83 @@ html, body {
     margin-top: 2px;
 }
 
+/* ==========================================
+   Stickers Animados de Telegram (TGS / Lottie / WebM)
+   ========================================== */
+.msg-sticker-animated {
+    max-width: 160px;
+    max-height: 160px;
+    width: auto;
+    height: auto;
+    border-radius: 8px;
+    cursor: pointer;
+    filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.45));
+    transition: transform 0.18s ease;
+}
+
+.msg-sticker-animated:hover {
+    transform: scale(1.08);
+}
+
+.msg-sticker-webm {
+    background: transparent;
+    pointer-events: auto;
+}
+
+.msg-sticker-lottie-container {
+    width: 150px;
+    height: 150px;
+    display: inline-block;
+    cursor: pointer;
+    transition: transform 0.18s ease;
+    filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.45));
+}
+
+.msg-sticker-lottie-container:hover {
+    transform: scale(1.08);
+}
+
+.msg-sticker-lottie-container svg {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.sticker-thumb-video {
+    width: 68px;
+    height: 68px;
+    object-fit: contain;
+    margin-bottom: 6px;
+    border-radius: 4px;
+}
+
+.sticker-thumb-lottie {
+    width: 68px;
+    height: 68px;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sticker-thumb-lottie svg {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.sticker-badge-anim {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    background: linear-gradient(135deg, #0088cc 0%, #5865f2 100%);
+    color: #ffffff;
+    font-size: 8.5px;
+    font-weight: 700;
+    padding: 2px 5px;
+    border-radius: 3px;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    box-shadow: 0 2px 6px rgba(0, 136, 204, 0.4);
+}
+
+
 

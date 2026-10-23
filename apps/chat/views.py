@@ -15,6 +15,7 @@ from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from cryptography.fernet import Fernet
 import io
+import gzip
 from django.core.files.base import ContentFile
 from PIL import Image
 
@@ -498,7 +499,7 @@ def get_user_profile_api(request, username):
 @login_required
 @require_GET
 def list_stickers_api(request):
-    """Retorna la lista de stickers disponibles agrupados por categoría."""
+    """Retorna la lista de stickers disponibles agrupados por categoría con soporte animado Telegram."""
     stickers = Sticker.objects.all().order_by('category', 'name')
     data = []
     for s in stickers:
@@ -507,38 +508,148 @@ def list_stickers_api(request):
             'name': s.name,
             'category': s.category,
             'url': s.get_image_url(),
+            'is_animated': s.is_animated,
+            'animation_type': s.animation_type,
+            'lottie_json': s.lottie_json if s.animation_type in ('lottie', 'tgs') else "",
         })
     return JsonResponse({'status': 'success', 'stickers': data})
 
 @login_required
 @require_POST
 def upload_sticker_api(request):
-    """Permite al equipo subir un sticker nuevo validado con Pillow."""
+    """
+    Soporte multi-formato seguro para stickers de Telegram y comunidad:
+    - .tgs (Stickers animados de Telegram basados en Lottie gzip)
+    - .json (Animaciones vectoriales Lottie estándar)
+    - .webm (Video stickers de Telegram con transparencia)
+    - .webp, .png, .gif, .jpg (Stickers estáticos o animados procesados con Pillow)
+    """
     file_obj = request.FILES.get('sticker_file')
     name = request.POST.get('name', 'Custom Sticker').strip()
-    category = request.POST.get('category', 'Comunidad').strip()
+    category = request.POST.get('category', 'Telegram & Equipo').strip()
 
     if not file_obj:
         return JsonResponse({'error': 'No se proporcionó archivo de sticker.'}, status=400)
 
+    filename_lower = file_obj.name.lower()
+    raw_bytes = file_obj.read()
+    file_obj.seek(0)
+
     try:
+        # 1. Telegram Animated Sticker (.tgs - gzip compressed Lottie JSON)
+        if filename_lower.endswith('.tgs') or (len(raw_bytes) > 2 and raw_bytes[:2] == b'\x1f\x8b'):
+            try:
+                decompressed = gzip.decompress(raw_bytes).decode('utf-8')
+                lottie_dict = json.loads(decompressed)
+                # Validar campos básicos de estructura Lottie
+                if 'v' in lottie_dict or 'layers' in lottie_dict:
+                    sticker = Sticker(
+                        name=name[:50],
+                        category=category[:50],
+                        is_animated=True,
+                        animation_type='tgs',
+                        lottie_json=decompressed
+                    )
+                    sticker.image.save(f"tgs_{uuid.uuid4().hex[:8]}.tgs", ContentFile(raw_bytes), save=True)
+                    AuditService.log(
+                        event_type='ATTACHMENT_UPLOADED',
+                        actor=request.user,
+                        severity='INFO',
+                        request=request,
+                        details={'type': 'telegram_tgs_sticker', 'name': sticker.name}
+                    )
+                    return JsonResponse({
+                        'status': 'success',
+                        'id': str(sticker.id),
+                        'name': sticker.name,
+                        'category': sticker.category,
+                        'url': sticker.get_image_url(),
+                        'is_animated': True,
+                        'animation_type': 'tgs',
+                        'lottie_json': sticker.lottie_json
+                    })
+            except Exception as e:
+                return JsonResponse({'error': 'El archivo .tgs no es una animación válida de Telegram.'}, status=400)
+
+        # 2. Lottie Vector Sticker (.json)
+        if filename_lower.endswith('.json'):
+            try:
+                json_str = raw_bytes.decode('utf-8')
+                lottie_dict = json.loads(json_str)
+                if 'v' in lottie_dict or 'layers' in lottie_dict:
+                    sticker = Sticker(
+                        name=name[:50],
+                        category=category[:50],
+                        is_animated=True,
+                        animation_type='lottie',
+                        lottie_json=json_str
+                    )
+                    sticker.image.save(f"lottie_{uuid.uuid4().hex[:8]}.json", ContentFile(raw_bytes), save=True)
+                    return JsonResponse({
+                        'status': 'success',
+                        'id': str(sticker.id),
+                        'name': sticker.name,
+                        'category': sticker.category,
+                        'url': sticker.get_image_url(),
+                        'is_animated': True,
+                        'animation_type': 'lottie',
+                        'lottie_json': sticker.lottie_json
+                    })
+            except Exception:
+                return JsonResponse({'error': 'El archivo JSON no tiene un formato Lottie válido.'}, status=400)
+
+        # 3. Telegram Video Sticker (.webm)
+        if filename_lower.endswith('.webm'):
+            if len(raw_bytes) > 10 * 1024 * 1024:
+                return JsonResponse({'error': 'El video sticker no debe superar los 10MB.'}, status=400)
+            sticker = Sticker(
+                name=name[:50],
+                category=category[:50],
+                is_animated=True,
+                animation_type='webm'
+            )
+            sticker.image.save(f"webm_{uuid.uuid4().hex[:8]}.webm", ContentFile(raw_bytes), save=True)
+            return JsonResponse({
+                'status': 'success',
+                'id': str(sticker.id),
+                'name': sticker.name,
+                'category': sticker.category,
+                'url': sticker.get_image_url(),
+                'is_animated': True,
+                'animation_type': 'webm',
+                'lottie_json': ''
+            })
+
+        # 4. Formatos de imagen tradicionales (PNG, WebP, GIF, JPG)
         img = Image.open(file_obj)
         img.verify()
         file_obj.seek(0)
         
-        # Redimensionar a formato óptimo para sticker
         img = Image.open(file_obj)
-        img = img.convert('RGBA')
-        img.thumbnail((200, 200), Image.Resampling.LANCZOS)
+        is_gif_animated = getattr(img, "is_animated", False)
         
-        buf = io.BytesIO()
-        img.save(buf, format='PNG')
-        buf.seek(0)
+        if is_gif_animated or filename_lower.endswith('.gif'):
+            sticker = Sticker(
+                name=name[:50], 
+                category=category[:50],
+                is_animated=True,
+                animation_type='gif'
+            )
+            sticker.image.save(f"anim_{uuid.uuid4().hex[:8]}.gif", ContentFile(raw_bytes), save=True)
+        else:
+            img = img.convert('RGBA')
+            img.thumbnail((256, 256), Image.Resampling.LANCZOS)
+            buf = io.BytesIO()
+            img.save(buf, format='WEBP', quality=90)
+            buf.seek(0)
+            sticker = Sticker(
+                name=name[:50], 
+                category=category[:50],
+                is_animated=False,
+                animation_type=''
+            )
+            sticker.image.save(f"custom_{uuid.uuid4().hex[:8]}.webp", ContentFile(buf.read()), save=True)
         
-        sticker = Sticker(name=name[:50], category=category[:50])
-        sticker.image.save(f"custom_{uuid.uuid4().hex[:8]}.png", ContentFile(buf.read()), save=True)
-        
-        # Registrar auditoría
         AuditService.log(
             event_type='ATTACHMENT_UPLOADED',
             actor=request.user,
@@ -553,8 +664,11 @@ def upload_sticker_api(request):
             'name': sticker.name,
             'category': sticker.category,
             'url': sticker.get_image_url(),
+            'is_animated': sticker.is_animated,
+            'animation_type': sticker.animation_type,
+            'lottie_json': sticker.lottie_json
         })
     except Exception as e:
-        return JsonResponse({'error': 'La imagen de sticker no es válida.'}, status=400)
+        return JsonResponse({'error': f'Error procesando sticker: {str(e)}'}, status=400)
 
 
