@@ -1012,180 +1012,378 @@ html, body {
     filter: drop-shadow(0 8px 18px rgba(88, 101, 242, 0.4));
 }
 
-.sticker-modal-content {
-    width: 540px;
-    max-height: 85vh;
+.chat-textarea-wrapper {
+    position: relative;
     display: flex;
-    flex-direction: column;
+    align-items: center;
+    width: 100%;
 }
 
-.sticker-picker-tabs {
-    display: flex;
-    gap: 8px;
-    border-bottom: 1px solid var(--border-color);
-    padding-bottom: 10px;
-    margin-bottom: 14px;
-}
-
-.sticker-tab-btn {
+.chat-inline-emoji-btn {
+    position: absolute;
+    right: 12px;
+    bottom: 10px;
     background: transparent;
     border: none;
-    color: var(--text-muted);
-    font-size: 13px;
-    font-weight: 600;
-    padding: 7px 14px;
+    font-size: 21px;
+    cursor: pointer;
+    padding: 4px 6px;
     border-radius: 6px;
-    cursor: pointer;
+    opacity: 0.75;
     transition: all 0.15s ease;
+    user-select: none;
 }
 
-.sticker-tab-btn:hover {
-    background: #35373c;
-    color: #ffffff;
-}
-
-.sticker-tab-btn.active {
-    background: var(--accent-blurple);
-    color: #ffffff;
-}
-
-.sticker-tab-pane {
-    display: flex;
-    flex-direction: column;
-}
-
-.sticker-picker-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(105px, 1fr));
-    gap: 12px;
-    max-height: 380px;
-    overflow-y: auto;
-    padding: 6px;
-    scrollbar-width: thin;
-    scrollbar-color: #1e1f22 transparent;
-}
-
-.sticker-picker-item {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    background-color: #232428;
-    border: 1px solid #313338;
-    border-radius: 8px;
-    padding: 10px 8px;
-    cursor: pointer;
-    transition: all 0.18s ease;
-    position: relative;
-}
-
-.sticker-picker-item:hover {
-    background-color: #2b2d31;
-    border-color: var(--accent-blurple);
-    transform: translateY(-3px);
-    box-shadow: 0 4px 12px rgba(88, 101, 242, 0.25);
-}
-
-.sticker-thumb {
-    width: 68px;
-    height: 68px;
-    object-fit: contain;
-    margin-bottom: 6px;
-    transition: transform 0.18s ease;
-}
-
-.sticker-picker-item:hover .sticker-thumb {
-    transform: scale(1.12);
-}
-
-.sticker-name-label {
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--text-secondary);
-    text-align: center;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    width: 100%;
-    margin-top: 2px;
+.chat-inline-emoji-btn:hover {
+    opacity: 1;
+    transform: scale(1.2);
+    filter: drop-shadow(0 2px 8px rgba(0, 136, 204, 0.5));
 }
 
 /* ==========================================
-   Stickers Animados de Telegram (TGS / Lottie / WebM)
+   Panel Flotante Popover Estilo Telegram (Emojis, Stickers, GIFs)
    ========================================== */
-.msg-sticker-animated {
-    max-width: 160px;
-    max-height: 160px;
-    width: auto;
-    height: auto;
-    border-radius: 8px;
-    cursor: pointer;
-    filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.45));
-    transition: transform 0.18s ease;
+.tg-popover {
+    position: absolute;
+    bottom: calc(100% + 10px);
+    right: 20px;
+    width: 390px;
+    height: 490px;
+    background: #1e1f22;
+    border: 1px solid #2b2d31;
+    border-radius: 14px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.05);
+    display: none;
+    flex-direction: column;
+    z-index: 1050;
+    overflow: hidden;
+    backdrop-filter: blur(16px);
+    animation: tgPopoverIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.msg-sticker-animated:hover {
-    transform: scale(1.08);
+@keyframes tgPopoverIn {
+    from {
+        opacity: 0;
+        transform: translateY(12px) scale(0.97);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
 }
 
-.msg-sticker-webm {
+/* Header de Pestañas Telegram */
+.tg-header-tabs {
+    display: flex;
+    align-items: center;
+    background-color: #18191c;
+    border-bottom: 1px solid #2b2d31;
+    position: relative;
+    padding: 0 8px;
+}
+
+.tg-tab {
+    flex: 1;
+    padding: 12px 0;
     background: transparent;
-    pointer-events: auto;
-}
-
-.msg-sticker-lottie-container {
-    width: 150px;
-    height: 150px;
-    display: inline-block;
+    border: none;
+    color: #949ba4;
+    font-size: 13.5px;
+    font-weight: 600;
     cursor: pointer;
-    transition: transform 0.18s ease;
-    filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.45));
+    text-align: center;
+    position: relative;
+    transition: color 0.15s ease;
 }
 
-.msg-sticker-lottie-container:hover {
-    transform: scale(1.08);
+.tg-tab:hover {
+    color: #dbdee1;
 }
 
-.msg-sticker-lottie-container svg {
-    width: 100% !important;
-    height: 100% !important;
+.tg-tab.active {
+    color: #0088cc;
 }
 
-.sticker-thumb-video {
-    width: 68px;
-    height: 68px;
-    object-fit: contain;
-    margin-bottom: 6px;
+.tg-tab.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 20%;
+    right: 20%;
+    height: 3px;
+    background-color: #0088cc;
+    border-radius: 3px 3px 0 0;
+    box-shadow: 0 0 8px rgba(0, 136, 204, 0.6);
+}
+
+.tg-close-btn {
+    background: transparent;
+    border: none;
+    color: #949ba4;
+    padding: 6px 10px;
+    font-size: 14px;
+    cursor: pointer;
     border-radius: 4px;
+    transition: all 0.15s;
 }
 
-.sticker-thumb-lottie {
-    width: 68px;
-    height: 68px;
-    margin-bottom: 6px;
+.tg-close-btn:hover {
+    color: #ffffff;
+    background-color: #313338;
+}
+
+/* Barra de Búsqueda */
+.tg-search-wrapper {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    background-color: #1e1f22;
+    border-bottom: 1px solid #2b2d31;
+    gap: 8px;
+}
+
+.tg-search-icon {
+    font-size: 13px;
+    color: #949ba4;
+}
+
+.tg-search-input {
+    flex: 1;
+    background: #111214;
+    border: 1px solid #2b2d31;
+    border-radius: 8px;
+    color: #ffffff;
+    padding: 6px 12px;
+    font-size: 12.5px;
+    outline: none;
+    transition: border-color 0.15s;
+}
+
+.tg-search-input:focus {
+    border-color: #0088cc;
+}
+
+/* Cuerpo con Scroll */
+.tg-content-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 12px;
+    scrollbar-width: thin;
+    scrollbar-color: #2b2d31 transparent;
+}
+
+/* Reacciones rápidas Telegram */
+.tg-quick-reactions {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 4px 10px 4px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    margin-bottom: 8px;
+}
+
+.tg-quick-reactions span {
+    font-size: 20px;
+    cursor: pointer;
+    transition: transform 0.15s ease;
+    padding: 4px;
+    border-radius: 6px;
+    user-select: none;
+}
+
+.tg-quick-reactions span:hover {
+    transform: scale(1.3);
+    background-color: #2b2d31;
+}
+
+/* Encabezados de sección */
+.tg-section-header {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: #949ba4;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin: 10px 0 6px 2px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+/* Cuadrícula de Emojis */
+.tg-emoji-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 4px;
+    margin-bottom: 12px;
+}
+
+.tg-emoji-item {
+    font-size: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 38px;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: transform 0.12s ease, background 0.12s ease;
+    user-select: none;
+}
+
+.tg-emoji-item:hover {
+    transform: scale(1.3);
+    background-color: #2b2d31;
+}
+
+/* Cuadrícula de Stickers estilo Telegram (Fondo transparente limpio) */
+.tg-stickers-pack-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+    font-weight: 700;
+    color: #dbdee1;
+    padding: 8px 4px 4px 4px;
+    margin-top: 8px;
+}
+
+.tg-stickers-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.tg-sticker-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 80px;
+    cursor: pointer;
+    border-radius: 10px;
+    transition: transform 0.15s ease, background 0.15s ease;
+    position: relative;
+    padding: 4px;
+}
+
+.tg-sticker-item:hover {
+    transform: scale(1.14);
+    background-color: rgba(255, 255, 255, 0.06);
+}
+
+.tg-sticker-thumb {
+    width: 64px;
+    height: 64px;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.3));
+}
+
+.tg-sticker-badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    background: #0088cc;
+    color: #ffffff;
+    font-size: 7.5px;
+    font-weight: 700;
+    padding: 1px 3px;
+    border-radius: 2px;
+}
+
+/* Cuadrícula de GIFs */
+.tg-gifs-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    padding: 4px 0;
+}
+
+.tg-gif-item {
+    height: 105px;
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    position: relative;
+    background: #111214;
+    transition: transform 0.15s ease;
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
-.sticker-thumb-lottie svg {
-    width: 100% !important;
-    height: 100% !important;
+.tg-gif-item:hover {
+    transform: scale(1.04);
 }
 
-.sticker-badge-anim {
+.tg-gif-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.tg-gif-label {
     position: absolute;
-    top: 4px;
-    right: 4px;
-    background: linear-gradient(135deg, #0088cc 0%, #5865f2 100%);
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(0, 0, 0, 0.7);
     color: #ffffff;
-    font-size: 8.5px;
-    font-weight: 700;
-    padding: 2px 5px;
-    border-radius: 3px;
-    letter-spacing: 0.02em;
-    text-transform: uppercase;
-    box-shadow: 0 2px 6px rgba(0, 136, 204, 0.4);
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Dock Inferior Telegram */
+.tg-bottom-dock {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background-color: #18191c;
+    border-top: 1px solid #2b2d31;
+    padding: 6px 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.tg-dock-item {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    border-radius: 8px;
+    background: transparent;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    cursor: pointer;
+    color: #949ba4;
+    transition: all 0.15s ease;
+}
+
+.tg-dock-item:hover {
+    background-color: #2b2d31;
+    color: #ffffff;
+    transform: scale(1.1);
+}
+
+.tg-dock-item.active {
+    background-color: rgba(0, 136, 204, 0.2);
+    color: #0088cc;
+}
+
+/* Fallback de Sticker */
+.msg-sticker-fallback {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #2b2d31;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    color: #ffffff;
 }
 
 

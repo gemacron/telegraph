@@ -118,22 +118,15 @@ document.addEventListener('DOMContentLoaded', () => {
         let pendingLottieData = null;
         let pendingLottieUrl = null;
 
-        if (msg.is_sticker && msg.sticker_image_url) {
+        if (msg.is_sticker) {
+            const stickerUrl = msg.sticker_image_url || '/media/stickers/lgtm.png';
             if (msg.is_animated_sticker && msg.sticker_animation_type === 'webm') {
                 innerContent = `<div class="msg-sticker-wrapper">
-                                    <video class="msg-sticker-animated msg-sticker-webm" autoplay loop muted playsinline src="${msg.sticker_image_url}" title="${escapeHtml(msg.content)}"></video>
-                                </div>`;
-            } else if (msg.is_animated_sticker && (msg.sticker_animation_type === 'tgs' || msg.sticker_animation_type === 'lottie')) {
-                const lottieId = `lottie_${msg.id || Math.random().toString(36).substring(2, 9)}`;
-                pendingLottieId = lottieId;
-                pendingLottieData = msg.sticker_lottie_json;
-                pendingLottieUrl = msg.sticker_image_url;
-                innerContent = `<div class="msg-sticker-wrapper">
-                                    <div class="msg-sticker-lottie-container" id="${lottieId}" title="${escapeHtml(msg.content)}"></div>
+                                    <video class="msg-sticker-animated msg-sticker-webm" autoplay loop muted playsinline src="${stickerUrl}" title="${escapeHtml(msg.content)}"></video>
                                 </div>`;
             } else {
                 innerContent = `<div class="msg-sticker-wrapper">
-                                    <img src="${msg.sticker_image_url}" class="msg-sticker-img" alt="${escapeHtml(msg.content)}" title="${escapeHtml(msg.content)}">
+                                    <img src="${stickerUrl}" class="msg-sticker-img" alt="${escapeHtml(msg.content)}" title="${escapeHtml(msg.content)}">
                                 </div>`;
             }
         } else if (msg.attachment_url) {
@@ -451,83 +444,93 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // ==========================================
-    // Selector y Envío de Stickers (Estilo Discord)
+    // Panel Popover Flotante Estilo Telegram (Emojis, Stickers, GIFs)
     // ==========================================
-    const stickerModal = document.getElementById('stickerPickerModal');
+    const tgPicker = document.getElementById('telegramPicker');
+    const tgToggleBtn = document.getElementById('tgPickerToggleBtn');
+    let tgDataLoaded = false;
 
-    window.openStickerPicker = function() {
-        if (stickerModal) {
-            stickerModal.style.display = 'flex';
-            loadStickers();
-        }
-    };
-
-    window.closeStickerPicker = function() {
-        if (stickerModal) stickerModal.style.display = 'none';
-    };
-
-    window.showStickerTab = function(tabName) {
-        const catPane = document.getElementById('stickerTabCatalog');
-        const uploadPane = document.getElementById('stickerTabUpload');
-        const catBtn = document.getElementById('tabStickerCatBtn');
-        const uploadBtn = document.getElementById('tabStickerUploadBtn');
-
-        if (tabName === 'upload') {
-            if (catPane) catPane.style.display = 'none';
-            if (uploadPane) uploadPane.style.display = 'flex';
-            if (catBtn) catBtn.classList.remove('active');
-            if (uploadBtn) uploadBtn.classList.add('active');
+    window.toggleTelegramPicker = function(e) {
+        if (e) e.stopPropagation();
+        if (!tgPicker) return;
+        const isShown = tgPicker.style.display === 'flex';
+        if (isShown) {
+            closeTelegramPicker();
         } else {
-            if (catPane) catPane.style.display = 'flex';
-            if (uploadPane) uploadPane.style.display = 'none';
-            if (catBtn) catBtn.classList.add('active');
-            if (uploadBtn) uploadBtn.classList.remove('active');
+            openTelegramPicker();
         }
     };
 
-    // Helper de Renderizado Lottie Vectorial (Telegram TGS / Lottie JSON)
-    window.renderLottieItem = function(elementOrId, lottieJson, url) {
-        if (typeof lottie === 'undefined') return;
-        const container = typeof elementOrId === 'string' ? document.getElementById(elementOrId) : elementOrId;
-        if (!container) return;
-        container.innerHTML = '';
-        try {
-            if (lottieJson) {
-                const animData = typeof lottieJson === 'string' ? JSON.parse(lottieJson) : lottieJson;
-                lottie.loadAnimation({
-                    container: container,
-                    renderer: 'svg',
-                    loop: true,
-                    autoplay: true,
-                    animationData: animData
-                });
-            } else if (url) {
-                lottie.loadAnimation({
-                    container: container,
-                    renderer: 'svg',
-                    loop: true,
-                    autoplay: true,
-                    path: url
-                });
-            }
-        } catch (err) {
-            console.warn('[Lottie] Error cargando animación:', err);
+    window.openTelegramPicker = function() {
+        if (!tgPicker) return;
+        tgPicker.style.display = 'flex';
+        if (!tgDataLoaded) {
+            initTelegramPickerData();
+            tgDataLoaded = true;
         }
     };
 
-    function initExistingLottieStickers() {
-        document.querySelectorAll('.msg-sticker-lottie-container').forEach(el => {
-            const url = el.getAttribute('data-lottie-url');
-            if (url && !el.children.length) {
-                renderLottieItem(el, null, url);
-            }
-        });
-    }
+    window.closeTelegramPicker = function() {
+        if (tgPicker) tgPicker.style.display = 'none';
+    };
 
-    // Inicializar stickers animados existentes en el historial
-    setTimeout(initExistingLottieStickers, 400);
+    // Cerrar el popover al hacer clic fuera
+    document.addEventListener('click', (e) => {
+        if (!tgPicker || tgPicker.style.display !== 'flex') return;
+        const inlineBtn = e.target.closest('.chat-inline-emoji-btn');
+        const toggleBtn = e.target.closest('#tgPickerToggleBtn');
+        if (!tgPicker.contains(e.target) && !inlineBtn && !toggleBtn) {
+            closeTelegramPicker();
+        }
+    });
 
-    window.sendSticker = function(stickerUrl, stickerName, isAnimated, animType, lottieJson) {
+    // Cambio de pestañas (Emojis | Stickers | GIF)
+    window.switchTgTab = function(tabName) {
+        const paneEmojis = document.getElementById('tgPaneEmojis');
+        const paneStickers = document.getElementById('tgPaneStickers');
+        const paneGifs = document.getElementById('tgPaneGifs');
+
+        const btnEmojis = document.getElementById('tgTabBtnEmojis');
+        const btnStickers = document.getElementById('tgTabBtnStickers');
+        const btnGifs = document.getElementById('tgTabBtnGifs');
+
+        const dockEmojis = document.getElementById('dockBtnEmojis');
+        const dockGifs = document.getElementById('dockBtnGifs');
+
+        [paneEmojis, paneStickers, paneGifs].forEach(p => { if (p) p.style.display = 'none'; });
+        [btnEmojis, btnStickers, btnGifs].forEach(b => { if (b) b.classList.remove('active'); });
+        if (dockEmojis) dockEmojis.classList.remove('active');
+        if (dockGifs) dockGifs.classList.remove('active');
+
+        if (tabName === 'stickers') {
+            if (paneStickers) paneStickers.style.display = 'block';
+            if (btnStickers) btnStickers.classList.add('active');
+            loadTelegramStickers();
+        } else if (tabName === 'gifs') {
+            if (paneGifs) paneGifs.style.display = 'block';
+            if (btnGifs) btnGifs.classList.add('active');
+            if (dockGifs) dockGifs.classList.add('active');
+            loadTelegramGifs();
+        } else {
+            if (paneEmojis) paneEmojis.style.display = 'block';
+            if (btnEmojis) btnEmojis.classList.add('active');
+            if (dockEmojis) dockEmojis.classList.add('active');
+        }
+    };
+
+    // Insertar emoji en el cursor del input de chat
+    window.insertEmoji = function(emojiChar) {
+        if (!messageInput) return;
+        const start = messageInput.selectionStart || messageInput.value.length;
+        const end = messageInput.selectionEnd || messageInput.value.length;
+        const text = messageInput.value;
+        messageInput.value = text.substring(0, start) + emojiChar + text.substring(end);
+        messageInput.selectionStart = messageInput.selectionEnd = start + emojiChar.length;
+        messageInput.focus();
+    };
+
+    // Enviar sticker al chat de forma instantánea
+    window.sendSticker = function(stickerUrl, stickerName, isAnimated, animType) {
         if (!socket || socket.readyState !== WebSocket.OPEN) return;
         socket.send(JSON.stringify({
             type: 'sticker',
@@ -535,93 +538,224 @@ document.addEventListener('DOMContentLoaded', () => {
             sticker_image_url: stickerUrl,
             content: stickerName || 'Sticker',
             is_animated_sticker: !!isAnimated,
-            sticker_animation_type: animType || '',
-            sticker_lottie_json: lottieJson || ''
+            sticker_animation_type: animType || ''
         }));
-        closeStickerPicker();
+        closeTelegramPicker();
     };
 
-    async function loadStickers() {
-        const grid = document.getElementById('stickerGridContainer');
-        if (!grid) return;
+    // Inicializar datos de emojis, stickers y GIFs
+    function initTelegramPickerData() {
+        populateEmojis();
+        loadTelegramStickers();
+    }
+
+    // Poblar colecciones de emojis nativos de alta fidelidad
+    function populateEmojis() {
+        const faces = [
+            '😂', '😘', '❤️', '😍', '😊', '😁', '👍', '😋', '😔', '😃', '😭', '💋', '😉', 
+            '😳', '😜', '🙈', '😇', '🥺', '🤪', '😱', '😡', '😏', '😞', '😅', '😚', '🙊', 
+            '😴', '😐', '😆', '👌', '😑', '🙁', '😀', '😃', '😄', '😁', '😆', '🥹', '😅', 
+            '😂', '🤣', '🥲', '☺️', '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', 
+            '😗', '😙', '😚', '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🥸', 
+            '🤩', '🥳', '😏', '😒', '😞', '😔', '😟', '😕', '🙁', '☹️', '😣', '😖', '😫', 
+            '😩', '🥺', '😢', '😭', '😤', '😠', '😡', '🤬', '🤯', '😳', '🥵', '🥶', '😱'
+        ];
+
+        const tech = [
+            '💻', '🖥️', '⌨️', '🖱️', '📱', '💾', '💿', '📡', '🚀', '⚙️', '🛠️', '🔧', '🔨', 
+            '🛡️', '🔒', '🔑', '💡', '📊', '📈', '📝', '📌', '☕', '🍕', '🍺', '⚡', '🤖', 
+            '🧠', '📦', '🐍', '🦀', '🐳', '🐧', '🌐', '🔍', '🚨', '🎯'
+        ];
+
+        const symbols = [
+            '❤️', '🤍', '👍', '👎', '🔥', '⭐', '✨', '💥', '💯', '☕', '🎉', '🎊', '🎁',
+            '🧡', '💛', '💚', '💙', '💜', '🖤', '🤎', '💔', '❣️', '💕', '💞', '💓', '💗', 
+            '💖', '💘', '💝', '💢', '💨', '💫', '💬', '💭', '🗯️', '✅', '❌', '⚠️', '🚫'
+        ];
+
+        renderEmojiGrid('tgEmojiGridFaces', faces);
+        renderEmojiGrid('tgEmojiGridTech', tech);
+        renderEmojiGrid('tgEmojiGridSymbols', symbols);
+    }
+
+    function renderEmojiGrid(containerId, list) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        container.innerHTML = '';
+        list.forEach(emoji => {
+            const span = document.createElement('span');
+            span.className = 'tg-emoji-item';
+            span.textContent = emoji;
+            span.title = emoji;
+            span.onclick = () => insertEmoji(emoji);
+            container.appendChild(span);
+        });
+    }
+
+    // Cargar y agrupar stickers de la base de datos
+    async function loadTelegramStickers() {
+        const container = document.getElementById('tgStickersContainer');
+        if (!container) return;
         try {
             const res = await fetch('/api/stickers/');
             if (res.ok) {
                 const data = await res.json();
-                grid.innerHTML = '';
-                if (data.stickers && data.stickers.length > 0) {
-                    data.stickers.forEach(s => {
+                container.innerHTML = '';
+                const stickers = data.stickers || [];
+
+                if (stickers.length === 0) {
+                    container.innerHTML = '<div style="color: #949ba4; padding: 24px; text-align: center;">No hay stickers disponibles.</div>';
+                    return;
+                }
+
+                // Agrupar por packs
+                const packs = {};
+                stickers.forEach(s => {
+                    const cat = s.category || 'Varios';
+                    if (!packs[cat]) packs[cat] = [];
+                    packs[cat].push(s);
+                });
+
+                Object.keys(packs).forEach(packName => {
+                    const packHeader = document.createElement('div');
+                    packHeader.className = 'tg-stickers-pack-header';
+                    packHeader.id = `tgPack_${packName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+                    packHeader.innerHTML = `<span>${escapeHtml(packName)}</span><span style="font-size: 11px; color: #949ba4;">${packs[packName].length} stickers</span>`;
+                    container.appendChild(packHeader);
+
+                    const grid = document.createElement('div');
+                    grid.className = 'tg-stickers-grid';
+
+                    packs[packName].forEach(s => {
                         const item = document.createElement('div');
-                        item.className = 'sticker-picker-item' + (s.is_animated ? ' is-animated' : '');
-                        item.title = `${s.category}: ${s.name} ${s.is_animated ? '(Telegram Animado)' : ''}`;
-                        item.onclick = () => sendSticker(s.url, s.name, s.is_animated, s.animation_type, s.lottie_json);
+                        item.className = 'tg-sticker-item';
+                        item.title = `${s.name} (Clic para enviar)`;
+                        item.onclick = () => sendSticker(s.url, s.name, s.is_animated, s.animation_type);
 
-                        let thumbHtml = '';
-                        if (s.is_animated && s.animation_type === 'webm') {
-                            thumbHtml = `<video class="sticker-thumb-video" autoplay loop muted playsinline src="${s.url}"></video>`;
-                        } else if (s.is_animated && (s.animation_type === 'tgs' || s.animation_type === 'lottie')) {
-                            thumbHtml = `<div class="sticker-thumb-lottie" id="thumb_lottie_${s.id}"></div>`;
-                        } else {
-                            thumbHtml = `<img src="${s.url}" alt="${s.name}" class="sticker-thumb">`;
-                        }
-
-                        const badgeHtml = s.is_animated ? `<span class="sticker-badge-anim">✨ Animado</span>` : '';
-
+                        const badge = s.is_animated ? '<span class="tg-sticker-badge">✨</span>' : '';
                         item.innerHTML = `
-                            ${thumbHtml}
-                            ${badgeHtml}
-                            <div class="sticker-name-label">${escapeHtml(s.name.replace(/_/g, ' '))}</div>
+                            <img src="${s.url}" alt="${s.name}" class="tg-sticker-thumb">
+                            ${badge}
                         `;
                         grid.appendChild(item);
-
-                        if (s.is_animated && (s.animation_type === 'tgs' || s.animation_type === 'lottie')) {
-                            setTimeout(() => {
-                                renderLottieItem(`thumb_lottie_${s.id}`, s.lottie_json, s.url);
-                            }, 50);
-                        }
                     });
-                } else {
-                    grid.innerHTML = '<div style="color: var(--text-muted); padding: 20px; grid-column: 1/-1; text-align: center;">No hay stickers disponibles.</div>';
-                }
+
+                    container.appendChild(grid);
+                });
             }
         } catch (err) {
             console.error('Error cargando stickers:', err);
         }
     }
 
-    // Subir Sticker Personalizado por el usuario
+    // Salto rápido a pack desde el dock inferior
+    window.jumpToStickerPack = function(packKeyword) {
+        switchTgTab('stickers');
+        setTimeout(() => {
+            const headers = document.querySelectorAll('.tg-stickers-pack-header');
+            for (let h of headers) {
+                if (h.textContent.toLowerCase().includes(packKeyword.toLowerCase())) {
+                    h.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    break;
+                }
+            }
+        }, 100);
+    };
+
+    // Colección de GIFs de desarrollo y humor de equipo
+    function loadTelegramGifs() {
+        const grid = document.getElementById('tgGifsGrid');
+        if (!grid || grid.children.length > 0) return;
+
+        const gifs = [
+            { name: 'Coding Hacker', url: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=240&h=160&fit=crop', label: '💻 Coding Fast' },
+            { name: 'Server Deployment', url: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=240&h=160&fit=crop', label: '🚀 Deploying' },
+            { name: 'Bug Hunting', url: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=240&h=160&fit=crop', label: '🐛 Fix in Progress' },
+            { name: 'Coffee Mode', url: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=240&h=160&fit=crop', label: '☕ Need Coffee' }
+        ];
+
+        grid.innerHTML = '';
+        gifs.forEach(g => {
+            const item = document.createElement('div');
+            item.className = 'tg-gif-item';
+            item.onclick = () => {
+                if (!socket || socket.readyState !== WebSocket.OPEN) return;
+                socket.send(JSON.stringify({
+                    type: 'message',
+                    content: `![${g.name}](${g.url})`,
+                    is_code: false
+                }));
+                closeTelegramPicker();
+            };
+            item.innerHTML = `
+                <img src="${g.url}" alt="${g.name}" class="tg-gif-img">
+                <div class="tg-gif-label">${g.label}</div>
+            `;
+            grid.appendChild(item);
+        });
+    }
+
+    // Filtrar contenido en el buscador
+    window.filterTgContent = function(query) {
+        const q = (query || '').toLowerCase().trim();
+        const activePane = document.querySelector('.tg-pane:not([style*="display: none"])');
+        if (!activePane) return;
+
+        if (activePane.id === 'tgPaneEmojis') {
+            document.querySelectorAll('.tg-emoji-item').forEach(el => {
+                const title = el.getAttribute('title') || '';
+                el.style.display = (!q || title.includes(q)) ? 'flex' : 'none';
+            });
+        } else if (activePane.id === 'tgPaneStickers') {
+            document.querySelectorAll('.tg-sticker-item').forEach(el => {
+                const title = (el.getAttribute('title') || '').toLowerCase();
+                el.style.display = (!q || title.includes(q)) ? 'flex' : 'none';
+            });
+        }
+    };
+
+    // Modal de Subida de Stickers
+    const uploadModal = document.getElementById('customStickerUploadModal');
+
+    window.openUploadModalFromTg = function() {
+        closeTelegramPicker();
+        if (uploadModal) uploadModal.style.display = 'flex';
+    };
+
+    window.closeCustomStickerModal = function() {
+        if (uploadModal) uploadModal.style.display = 'none';
+    };
+
     window.uploadCustomSticker = async function() {
         const fileInput = document.getElementById('customStickerFileInput');
         const nameInput = document.getElementById('customStickerNameInput');
         const categoryInput = document.getElementById('customStickerCategoryInput');
 
         if (!fileInput || !fileInput.files[0]) {
-            alert('Por favor selecciona una imagen para el sticker.');
+            alert('Por favor selecciona un archivo de sticker (.tgs, .webm, WebP o PNG).');
             return;
         }
 
         const formData = new FormData();
         formData.append('sticker_file', fileInput.files[0]);
-        formData.append('name', nameInput.value.trim() || 'Custom Sticker');
-        formData.append('category', categoryInput.value.trim() || 'Comunidad');
+        formData.append('name', (nameInput ? nameInput.value.trim() : '') || 'Sticker');
+        formData.append('category', (categoryInput ? categoryInput.value.trim() : '') || 'Comunidad');
 
         try {
             const res = await fetch('/api/stickers/upload/', {
                 method: 'POST',
-                headers: {
-                    'X-CSRFToken': csrfToken
-                },
+                headers: { 'X-CSRFToken': csrfToken },
                 body: formData
             });
 
             const data = await res.json();
             if (res.ok) {
                 fileInput.value = '';
-                nameInput.value = '';
-                // Recargar catálogo de stickers y cambiar a pestaña de stickers
-                loadStickers();
-                showStickerTab('catalog');
-                alert('¡Sticker subido exitosamente a la biblioteca del equipo!');
+                if (nameInput) nameInput.value = '';
+                closeCustomStickerModal();
+                loadTelegramStickers();
+                openTelegramPicker();
+                switchTgTab('stickers');
             } else {
                 alert(data.error || 'Error al subir el sticker');
             }
@@ -630,3 +764,4 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 });
+

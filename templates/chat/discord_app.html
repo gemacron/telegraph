@@ -199,13 +199,11 @@
                         </div>
                         {% if msg.is_sticker and msg.sticker_image_url %}
                             <div class="msg-sticker-wrapper">
-                                {% if msg.is_animated_sticker and msg.sticker_animation_type == 'webm' %}
-                                    <video class="msg-sticker-animated msg-sticker-webm" autoplay loop muted playsinline src="{{ msg.sticker_image_url }}" title="{{ msg.content }}"></video>
-                                {% elif msg.is_animated_sticker and msg.sticker_animation_type in 'tgs,lottie' %}
-                                    <div class="msg-sticker-lottie-container" data-lottie-url="{{ msg.sticker_image_url }}" title="{{ msg.content }}"></div>
-                                {% else %}
-                                    <img src="{{ msg.sticker_image_url }}" class="msg-sticker-img" alt="{{ msg.content }}" title="{{ msg.content }}">
-                                {% endif %}
+                                <img src="{{ msg.sticker_image_url }}" class="msg-sticker-img" alt="{{ msg.content }}" title="{{ msg.content }}">
+                            </div>
+                        {% elif msg.is_sticker %}
+                            <div class="msg-sticker-wrapper">
+                                <div class="msg-sticker-fallback">🎭 {{ msg.content }}</div>
                             </div>
                         {% elif msg.attachments.all %}
                             <div class="msg-content">{{ msg.content }}</div>
@@ -243,28 +241,100 @@
         </section>
 
         <!-- Barra Inferior de Entrada de Texto -->
-        <footer class="chat-input-area">
+        <footer class="chat-input-area" style="position: relative;">
+            <!-- Panel Flotante Popover Estilo Telegram (Emojis, Stickers, GIFs) -->
+            <div class="tg-popover" id="telegramPicker" onclick="event.stopPropagation()">
+                <!-- 1. Header con Pestañas Telegram -->
+                <div class="tg-header-tabs">
+                    <button type="button" class="tg-tab active" id="tgTabBtnEmojis" onclick="switchTgTab('emojis')">Emojis</button>
+                    <button type="button" class="tg-tab" id="tgTabBtnStickers" onclick="switchTgTab('stickers')">Stickers</button>
+                    <button type="button" class="tg-tab" id="tgTabBtnGifs" onclick="switchTgTab('gifs')">GIF</button>
+                    <button type="button" class="tg-close-btn" onclick="closeTelegramPicker()" title="Cerrar">✕</button>
+                </div>
+
+                <!-- 2. Barra de Búsqueda -->
+                <div class="tg-search-wrapper">
+                    <span class="tg-search-icon">🔍</span>
+                    <input type="text" id="tgSearchInput" class="tg-search-input" placeholder="Buscar emojis o stickers..." oninput="filterTgContent(this.value)">
+                </div>
+
+                <!-- 3. Contenedores de Contenido Scrollable -->
+                <div class="tg-content-body" id="tgContentBody">
+                    <!-- Pestaña Emojis -->
+                    <div class="tg-pane active" id="tgPaneEmojis">
+                        <!-- Barra de Reacciones Rápidas como en Telegram -->
+                        <div class="tg-quick-reactions">
+                            <span onclick="insertEmoji('🤍')" title="Corazón">🤍</span>
+                            <span onclick="insertEmoji('👍')" title="Pulgar arriba">👍</span>
+                            <span onclick="insertEmoji('👎')" title="Pulgar abajo">👎</span>
+                            <span onclick="insertEmoji('🎉')" title="Fiesta">🎉</span>
+                            <span onclick="insertEmoji('😄')" title="Sonrisa">😄</span>
+                            <span onclick="insertEmoji('😢')" title="Triste">😢</span>
+                            <span onclick="insertEmoji('🔥')" title="Fuego">🔥</span>
+                            <span onclick="insertEmoji('🚀')" title="Cohete">🚀</span>
+                            <span onclick="insertEmoji('💻')" title="Código">💻</span>
+                            <span onclick="insertEmoji('👏')" title="Aplausos">👏</span>
+                        </div>
+
+                        <div class="tg-section-header">Caras y personas</div>
+                        <div class="tg-emoji-grid" id="tgEmojiGridFaces"></div>
+
+                        <div class="tg-section-header">Desarrollo y Tecnología</div>
+                        <div class="tg-emoji-grid" id="tgEmojiGridTech"></div>
+
+                        <div class="tg-section-header">Objetos y Símbolos</div>
+                        <div class="tg-emoji-grid" id="tgEmojiGridSymbols"></div>
+                    </div>
+
+                    <!-- Pestaña Stickers -->
+                    <div class="tg-pane" id="tgPaneStickers" style="display: none;">
+                        <div class="tg-stickers-container" id="tgStickersContainer">
+                            <!-- Se renderizan los packs de stickers agrupados con encabezados -->
+                        </div>
+                    </div>
+
+                    <!-- Pestaña GIFs -->
+                    <div class="tg-pane" id="tgPaneGifs" style="display: none;">
+                        <div class="tg-gifs-grid" id="tgGifsGrid">
+                            <!-- Colección de GIFs de desarrollo y humor -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. Dock Inferior Telegram con Accesos Directos a Packs -->
+                <div class="tg-bottom-dock" id="tgBottomDock">
+                    <button type="button" class="tg-dock-item active" id="dockBtnEmojis" onclick="switchTgTab('emojis')" title="Emojis">😊</button>
+                    <button type="button" class="tg-dock-item" id="dockBtnTgPack" onclick="jumpToStickerPack('Telegram')" title="Pack Telegram">🚀</button>
+                    <button type="button" class="tg-dock-item" id="dockBtnDevPack" onclick="jumpToStickerPack('Dev')" title="Pack Dev">💻</button>
+                    <button type="button" class="tg-dock-item" id="dockBtnGifs" onclick="switchTgTab('gifs')" title="GIFs">🎬</button>
+                    <button type="button" class="tg-dock-item" onclick="openUploadModalFromTg()" title="➕ Subir Nuevo Sticker">➕</button>
+                </div>
+            </div>
+
             <div class="chat-input-box">
                 <div class="chat-input-actions-bar">
                     <label class="input-action-btn" title="Adjuntar Imagen o Icono">
                         📎 <span>Adjuntar</span>
                         <input type="file" id="fileUploadInput" accept="image/png,image/jpeg,image/gif,image/webp" style="display: none;">
                     </label>
-                    <button class="input-action-btn" onclick="openStickerPicker()" title="Enviar Sticker">
-                        🎭 <span>Sticker</span>
+                    <button type="button" class="input-action-btn tg-picker-toggle-btn" id="tgPickerToggleBtn" onclick="toggleTelegramPicker(event)" title="Emojis, Stickers y GIFs estilo Telegram">
+                        😊 <span>Stickers & Emojis</span>
                     </button>
-                    <button class="input-action-btn" onclick="openCodeModal()" title="Insertar bloque de código formateado">
+                    <button type="button" class="input-action-btn" onclick="openCodeModal()" title="Insertar bloque de código formateado">
                         💻 <span>Código</span>
                     </button>
-                    <button class="input-action-btn" style="color: #ff7b72;" onclick="openSecretModal()" title="Enviar secreto efímero con autodestrucción">
+                    <button type="button" class="input-action-btn" style="color: #ff7b72;" onclick="openSecretModal()" title="Enviar secreto efímero con autodestrucción">
                         🔒 <span>Secreto Efímero</span>
                     </button>
                 </div>
-                <textarea 
-                    id="chatInput" 
-                    class="chat-textarea" 
-                    placeholder="Enviar mensaje en {% if is_direct %}@{{ other_user.username }}{% else %}#{{ active_channel.name }}{% endif %} (Enter para enviar, Shift+Enter para salto de línea)..."
-                ></textarea>
+                <div class="chat-textarea-wrapper">
+                    <textarea 
+                        id="chatInput" 
+                        class="chat-textarea" 
+                        placeholder="Enviar mensaje en {% if is_direct %}@{{ other_user.username }}{% else %}#{{ active_channel.name }}{% endif %} (Enter para enviar, Shift+Enter para salto de línea)..."
+                    ></textarea>
+                    <button type="button" class="chat-inline-emoji-btn" onclick="toggleTelegramPicker(event)" title="Abrir selector de Emojis y Stickers de Telegram">😊</button>
+                </div>
             </div>
         </footer>
     </main>
@@ -497,48 +567,31 @@
         </form>
     </div>
 </div>
-<!-- Modal: Selector de Stickers estilo Discord -->
-<div class="modal-overlay" id="stickerPickerModal" onclick="if(event.target===this)closeStickerPicker()">
-    <div class="modal-content sticker-modal-content">
+<!-- Modal Compacto: Subir o Importar Sticker Personalizado (Telegram / WebP / PNG) -->
+<div class="modal-overlay" id="customStickerUploadModal" onclick="if(event.target===this)closeCustomStickerModal()">
+    <div class="modal-content" style="width: 480px;">
         <div class="modal-header">
-            <h3 class="modal-title">🎭 Stickers & Reacciones de Código</h3>
-            <button class="modal-close" onclick="closeStickerPicker()">✕</button>
+            <h3 class="modal-title">➕ Importar o Subir Sticker a DevCord</h3>
+            <button class="modal-close" onclick="closeCustomStickerModal()">✕</button>
         </div>
-        
-        <!-- Pestañas del selector -->
-        <div class="sticker-picker-tabs">
-            <button class="sticker-tab-btn active" id="tabStickerCatBtn" onclick="showStickerTab('catalog')">Colección de Stickers</button>
-            <button class="sticker-tab-btn" id="tabStickerUploadBtn" onclick="showStickerTab('upload')">➕ Subir Nuevo</button>
+        <div class="form-group">
+            <label class="form-label">Nombre del Sticker</label>
+            <input type="text" id="customStickerNameInput" class="form-control" placeholder="Ej: LGTM, Bug Hunter, Coffee Time">
         </div>
-
-        <!-- Pestaña 1: Grid de stickers -->
-        <div id="stickerTabCatalog" class="sticker-tab-pane active">
-            <div class="sticker-picker-grid" id="stickerGridContainer">
-                <!-- Se cargan dinámicamente vía /api/stickers/ -->
-            </div>
+        <div class="form-group">
+            <label class="form-label">Nombre del Pack / Categoría</label>
+            <input type="text" id="customStickerCategoryInput" class="form-control" value="Mi Pack" placeholder="Ej: Dev, Memes, Telegram, Equipo">
         </div>
-
-        <!-- Pestaña 2: Subir sticker personalizado -->
-        <div id="stickerTabUpload" class="sticker-tab-pane" style="display: none;">
-            <div class="form-group" style="margin-top: 8px;">
-                <label class="form-label">Nombre del Sticker</label>
-                <input type="text" id="customStickerNameInput" class="form-control" placeholder="Ej: LGTM, Bug Hunter, Coffee Time">
-            </div>
-            <div class="form-group">
-                <label class="form-label">Categoría</label>
-                <input type="text" id="customStickerCategoryInput" class="form-control" value="Equipo" placeholder="Ej: Dev, Memes, Aprobación">
-            </div>
-            <div class="form-group">
-                <label class="form-label">Archivo de Sticker (Telegram .tgs, .webm, Lottie .json, WebP, PNG, GIF)</label>
-                <input type="file" id="customStickerFileInput" class="form-control" accept=".tgs,.json,.webm,image/png,image/jpeg,image/webp,image/gif">
-                <small style="color: var(--text-muted); font-size: 11px; margin-top: 4px; display: block; line-height: 1.4;">
-                    ⚡ <strong>Compatibilidad Telegram:</strong> Admite stickers animados <code>.tgs</code> (Lottie gzip), video stickers <code>.webm</code> con transparencia, animaciones vectoriales <code>.json</code> y formatos estándar.
-                </small>
-            </div>
-            <div class="modal-actions" style="margin-top: 16px;">
-                <button class="btn-secondary" onclick="showStickerTab('catalog')">Volver al Catálogo</button>
-                <button class="btn-primary" onclick="uploadCustomSticker()">Subir y Guardar</button>
-            </div>
+        <div class="form-group">
+            <label class="form-label">Archivo de Sticker (Telegram .tgs, .webm, Lottie .json, WebP, PNG, GIF)</label>
+            <input type="file" id="customStickerFileInput" class="form-control" accept=".tgs,.json,.webm,image/png,image/jpeg,image/webp,image/gif">
+            <small style="color: var(--text-muted); font-size: 11.5px; margin-top: 6px; display: block; line-height: 1.4;">
+                ⚡ <strong>Totalmente compatible con Telegram:</strong> Soporta stickers animados <code>.tgs</code> (Lottie gzip), video stickers transparentes <code>.webm</code>, <code>.json</code> y formatos estándar.
+            </small>
+        </div>
+        <div class="modal-actions" style="margin-top: 18px;">
+            <button type="button" class="btn-secondary" onclick="closeCustomStickerModal()">Cancelar</button>
+            <button type="button" class="btn-primary" onclick="uploadCustomSticker()">Subir y Publicar</button>
         </div>
     </div>
 </div>
