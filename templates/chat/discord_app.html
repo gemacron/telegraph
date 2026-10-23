@@ -11,31 +11,37 @@
 
 {% block content %}
 <div class="app-container">
-    <!-- 1. Barra de Workspaces / Servidores -->
+    <!-- 1. Barra Lateral de Servidores / Workspaces -->
     <nav class="servers-sidebar" aria-label="Workspaces">
-        <a href="{% url 'index' %}" class="server-icon active" title="{{ workspace.name|default:'DevCord Workspace' }}">
-            {% if workspace.icon %}
-                <img src="{{ workspace.icon.url }}" alt="Icon" style="width:100%;height:100%;border-radius:inherit;object-fit:cover;">
-            {% else %}
-                ⚡
-            {% endif %}
-        </a>
+        <div class="server-icon-wrapper active" title="{{ workspace.name|default:'DevCord Workspace' }}">
+            <div class="server-pill"></div>
+            <a href="{% url 'index' %}" class="server-icon">
+                {% if workspace.icon %}
+                    <img src="{{ workspace.icon.url }}" alt="Icon" style="width:100%;height:100%;border-radius:inherit;object-fit:cover;">
+                {% else %}
+                    ⚡
+                {% endif %}
+            </a>
+        </div>
         <div class="server-separator"></div>
-        <div class="server-icon" title="Añadir Servidor (Próximamente)">+</div>
+        <div class="server-icon-wrapper" title="Nuevo Espacio de Trabajo">
+            <div class="server-pill"></div>
+            <div class="server-icon" style="color: var(--accent-success); font-size: 24px;">+</div>
+        </div>
     </nav>
 
     <!-- 2. Barra de Canales y DMs -->
     <aside class="channels-sidebar">
         <header class="workspace-header">
-            <span>{{ workspace.name|default:"DevCord Workspace" }}</span>
-            <span style="font-size: 13px; color: var(--accent-success);">● Online</span>
+            <span>{{ workspace.name|default:"DevCord Engineering" }}</span>
+            <span style="font-size: 14px; color: var(--text-muted);">▼</span>
         </header>
 
         <div class="channels-scroll">
-            <!-- Canales de Texto y Código -->
+            <!-- Sección Canales de Desarrollo -->
             <div class="section-label">
-                <span>Canales de Desarrollo</span>
-                <span style="cursor: pointer;" title="Canales del equipo">#</span>
+                <span>Canales de Texto</span>
+                <span style="cursor: pointer; font-size: 14px;" title="Canales del equipo">#</span>
             </div>
             {% for ch in channels %}
                 <a href="{% url 'channel_view' ch.id %}" class="channel-item {% if not is_direct and ch.id == active_channel.id %}active{% endif %}">
@@ -43,37 +49,35 @@
                     <span>{{ ch.name }}</span>
                 </a>
             {% empty %}
-                <div style="font-size: 12px; color: var(--text-muted); padding: 8px;">No hay canales disponibles.</div>
+                <div style="font-size: 12px; color: var(--text-muted); padding: 8px;">No hay canales creados.</div>
             {% endfor %}
 
-            <!-- Mensajes Directos (DMs) -->
-            <div class="section-label" style="margin-top: 16px;">
+            <!-- Sección Mensajes Directos (DMs) -->
+            <div class="section-label" style="margin-top: 14px;">
                 <span>Mensajes Directos</span>
-                <button class="btn-icon" onclick="openStartDmModal()" title="Iniciar DM">+</button>
+                <button class="btn-icon" onclick="openStartDmModal()" title="Iniciar nuevo chat privado" style="font-size: 14px; padding: 2px;">+</button>
             </div>
             {% for dm in direct_conversations %}
-                {% with other=dm|default_if_none:None %}
-                    <a href="{% url 'dm_view' dm.id %}" class="channel-item {% if is_direct and dm.id == active_conversation.id %}active{% endif %}">
-                        <span class="dm-status-dot"></span>
-                        <span>
-                            {% for p in dm.participants.all %}
-                                {% if p != request.user %}{{ p.username }}{% endif %}
-                            {% endfor %}
-                        </span>
-                    </a>
-                {% endwith %}
+                <a href="{% url 'dm_view' dm.id %}" class="channel-item {% if is_direct and dm.id == active_conversation.id %}active{% endif %}">
+                    <span class="dm-status-dot"></span>
+                    <span>
+                        {% for p in dm.participants.all %}
+                            {% if p != request.user %}{{ p.username }}{% endif %}
+                        {% endfor %}
+                    </span>
+                </a>
             {% empty %}
-                <div style="font-size: 12px; color: var(--text-muted); padding: 8px;">Sin chats individuales.</div>
+                <div style="font-size: 12px; color: var(--text-muted); padding: 8px;">Sin chats privados.</div>
             {% endfor %}
         </div>
 
-        <!-- Panel de Usuario inferior -->
+        <!-- Panel Inferior de Usuario -->
         <div class="user-panel">
             <div class="user-info">
                 <div class="user-avatar-sm">{{ request.user.username|make_list|first|upper }}</div>
                 <div>
                     <div class="user-name-tag">{{ request.user.username }}</div>
-                    <div style="font-size: 11px; color: var(--accent-success);">En línea</div>
+                    <div class="user-subtext">En línea</div>
                 </div>
             </div>
             <div>
@@ -95,18 +99,18 @@
                 {% endif %}
             </div>
 
-            <!-- Acciones rápidas en la cabecera -->
+            <!-- Acciones rápidas estilo Discord Developer -->
             <div class="header-actions">
-                <button class="btn-badge-action btn-badge-danger" onclick="openSecretModal()" title="Enviar contraseña o token con autodestrucción">
+                <button class="btn-badge-action btn-badge-danger" onclick="openSecretModal()" title="Enviar credencial o dato confidencial con autodestrucción atómica">
                     🔒 Secreto Seguro (DLP)
                 </button>
-                <button class="btn-badge-action" onclick="openCodeModal()" title="Compartir fragmento de código formateado">
+                <button class="btn-badge-action" onclick="openCodeModal()" title="Compartir snippet con resaltado de sintaxis">
                     💻 Compartir Código
                 </button>
             </div>
         </header>
 
-        <!-- Banner de alerta preventiva DLP -->
+        <!-- Banner de Alerta en tiempo real de DLP -->
         <div class="dlp-alert-banner" id="dlpAlert">
             <div class="dlp-alert-content">
                 <span style="font-size: 20px;">🛡️</span>
@@ -116,19 +120,19 @@
                 </div>
             </div>
             <div style="display: flex; gap: 8px;">
-                <button class="btn-badge-action" style="background:#fff; color:#000;" onclick="openSecretModal()">
+                <button class="btn-badge-action" style="background:#ffffff; color:#000000; border: none;" onclick="openSecretModal()">
                     Enviar como Secreto Efímero
                 </button>
-                <button class="btn-icon" style="color: #fff;" onclick="this.closest('#dlpAlert').style.display='none'">✕</button>
+                <button class="btn-icon" style="color: #ffffff;" onclick="this.closest('#dlpAlert').style.display='none'">✕</button>
             </div>
         </div>
 
-        <!-- Mensajes del canal / DM -->
+        <!-- Contenedor con Scroll de Mensajes -->
         <section class="messages-container" id="messagesContainer">
-            <!-- Secretos efímeros activos que aún no han sido destruidos -->
+            <!-- Tarjetas de Secretos Efímeros Activos -->
             {% for secret in active_secrets %}
                 <div class="message-card">
-                    <div class="msg-avatar">🔒</div>
+                    <div class="msg-avatar" style="background-color: var(--accent-danger);">🔒</div>
                     <div class="msg-body">
                         <div class="msg-meta">
                             <span class="msg-author">{{ secret.author.username }}</span>
@@ -139,7 +143,7 @@
                                 <span>🛡️ {{ secret.title }}</span>
                             </div>
                             <div class="secret-desc">
-                                Este mensaje contiene datos confidenciales cifrados.
+                                Este mensaje contiene datos confidenciales cifrados en el servidor.
                                 {% if secret.burn_on_read %}
                                     Se destruirá de forma permanente e irreversible de PostgreSQL tras el primer acceso.
                                 {% else %}
@@ -154,7 +158,7 @@
                 </div>
             {% endfor %}
 
-            <!-- Historial de mensajes -->
+            <!-- Historial de Mensajes -->
             {% for msg in messages %}
                 <div class="message-card">
                     <div class="msg-avatar">{{ msg.author.username|make_list|first|upper }}</div>
@@ -190,15 +194,15 @@
                     </div>
                 </div>
             {% empty %}
-                <div style="text-align: center; color: var(--text-muted); margin: auto;">
-                    <div style="font-size: 32px; margin-bottom: 8px;">🚀</div>
-                    <h3>Comienza la conversación en {% if is_direct %}el chat directo con @{{ other_user.username }}{% else %}#{{ active_channel.name }}{% endif %}</h3>
-                    <p style="font-size: 13px; margin-top: 4px;">Tus mensajes están protegidos por el motor de prevención de fugas DLP.</p>
+                <div style="text-align: center; color: var(--text-muted); margin: auto; padding: 40px 20px;">
+                    <div style="font-size: 48px; margin-bottom: 12px;">🚀</div>
+                    <h2 style="font-size: 20px; font-weight: 700; color: #ffffff;">Comienza la conversación en {% if is_direct %}el chat con @{{ other_user.username }}{% else %}#{{ active_channel.name }}{% endif %}</h2>
+                    <p style="font-size: 13.5px; margin-top: 6px;">Tus mensajes están protegidos en tiempo real por el motor de prevención de fugas DLP.</p>
                 </div>
             {% endfor %}
         </section>
 
-        <!-- Barra inferior de envío de mensajes -->
+        <!-- Barra Inferior de Entrada de Texto -->
         <footer class="chat-input-area">
             <div class="chat-input-box">
                 <div class="chat-input-actions-bar">
@@ -206,7 +210,7 @@
                         📎 <span>Adjuntar</span>
                         <input type="file" id="fileUploadInput" accept="image/png,image/jpeg,image/gif,image/webp" style="display: none;">
                     </label>
-                    <button class="input-action-btn" onclick="openCodeModal()" title="Insertar bloque de código">
+                    <button class="input-action-btn" onclick="openCodeModal()" title="Insertar bloque de código formateado">
                         💻 <span>Código</span>
                     </button>
                     <button class="input-action-btn" style="color: #ff7b72;" onclick="openSecretModal()" title="Enviar secreto efímero con autodestrucción">
@@ -222,11 +226,11 @@
         </footer>
     </main>
 
-    <!-- 4. Barra Lateral de Miembros -->
+    <!-- 4. Barra Lateral Derecha de Miembros -->
     <aside class="members-sidebar">
-        <div class="section-label">Miembros — {{ members.count }}</div>
+        <div class="section-label">En línea — {{ members.count }}</div>
         {% for m in members %}
-            <div class="member-item" onclick="startDmWith('{{ m.username }}')" title="Conversar con {{ m.username }}">
+            <div class="member-item" onclick="startDmWith('{{ m.username }}')" title="Conversar en privado con {{ m.username }}">
                 <div class="member-avatar">
                     {{ m.username|make_list|first|upper }}
                     <span class="member-status"></span>
@@ -237,7 +241,7 @@
     </aside>
 </div>
 
-<!-- Modal 1: Crear Secreto Efímero Autodestructible -->
+<!-- Modal 1: Enviar Secreto Efímero Autodestructible -->
 <div class="modal-overlay" id="secretModal">
     <div class="modal-content">
         <div class="modal-header">
@@ -245,12 +249,12 @@
             <button class="modal-close" onclick="closeSecretModal()">✕</button>
         </div>
         <div class="form-group">
-            <label class="form-label">Título del Secreto / Contexto</label>
+            <label class="form-label">Título del Secreto / Asunto</label>
             <input type="text" id="secretTitle" class="form-control" placeholder="Ej: Contraseña de DB Staging, Token de API, .env">
         </div>
         <div class="form-group">
             <label class="form-label">Dato Sensible / Contraseña / Credencial</label>
-            <textarea id="secretInputText" class="form-control" rows="4" placeholder="Pega aquí la clave secreta o contraseña. Se cifrará y no quedará en texto plano."></textarea>
+            <textarea id="secretInputText" class="form-control" rows="4" placeholder="Pega aquí la clave secreta o credencial sensible. Se cifrará en PostgreSQL."></textarea>
         </div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
             <div class="form-group">
@@ -264,12 +268,12 @@
             </div>
             <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin-top: 24px;">
                 <input type="checkbox" id="secretBurnOnRead" checked style="width: 18px; height: 18px; accent-color: var(--accent-danger);">
-                <label for="secretBurnOnRead" style="font-size: 13px; font-weight: 600; cursor: pointer;">Autodestruir al leer (1 acceso)</label>
+                <label for="secretBurnOnRead" style="font-size: 13px; font-weight: 600; color: var(--text-primary); cursor: pointer;">Autodestruir al leer (1 acceso)</label>
             </div>
         </div>
         <div class="modal-actions">
             <button class="btn-secondary" onclick="closeSecretModal()">Cancelar</button>
-            <button class="btn-primary" style="background: var(--accent-danger);" onclick="submitEphemeralSecret()">
+            <button class="btn-primary" style="background-color: var(--accent-danger);" onclick="submitEphemeralSecret()">
                 Cifrar y Enviar Secreto
             </button>
         </div>
@@ -311,9 +315,9 @@
     </div>
 </div>
 
-<!-- Modal 3: Iniciar DM rápido -->
+<!-- Modal 3: Iniciar Mensaje Directo -->
 <div class="modal-overlay" id="startDmModal">
-    <div class="modal-content" style="width: 400px;">
+    <div class="modal-content" style="width: 420px;">
         <div class="modal-header">
             <h3 class="modal-title">💬 Iniciar Mensaje Directo</h3>
             <button class="modal-close" onclick="document.getElementById('startDmModal').style.display='none'">✕</button>
@@ -321,8 +325,8 @@
         <form method="POST" action="{% url 'start_dm' %}">
             {% csrf_token %}
             <div class="form-group">
-                <label class="form-label">Usuario destinatario</label>
-                <input type="text" name="username" class="form-control" placeholder="Nombre de usuario exacto" required>
+                <label class="form-label">Nombre de usuario</label>
+                <input type="text" name="username" class="form-control" placeholder="Ej: developer, admin" required>
             </div>
             <div class="modal-actions">
                 <button type="button" class="btn-secondary" onclick="document.getElementById('startDmModal').style.display='none'">Cancelar</button>

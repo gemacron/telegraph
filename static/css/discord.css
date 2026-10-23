@@ -1,54 +1,119 @@
+/* ==========================================================================
+   DevCord - Hoja de Estilos Tema Discord Dark Mode Auténtico
+   ========================================================================== */
+
 :root {
+    /* Paleta Oficial de Colores Discord */
     --bg-servers: #1e1f22;
     --bg-channels: #2b2d31;
     --bg-chat: #313338;
     --bg-member-list: #2b2d31;
     --bg-input: #383a40;
     --bg-user-bar: #232428;
+    --bg-hover: rgba(255, 255, 255, 0.07);
+    --bg-active: rgba(255, 255, 255, 0.12);
+    --bg-code-box: #18191c;
+
     --text-primary: #f2f3f5;
+    --text-secondary: #dbdee1;
     --text-muted: #949ba4;
+    --text-channel-hash: #80848e;
     --text-link: #00a8fc;
+
     --accent-blurple: #5865f2;
     --accent-blurple-hover: #4752c4;
     --accent-danger: #f23f43;
+    --accent-danger-hover: #da373c;
     --accent-warning: #f0b232;
     --accent-success: #23a55a;
-    --border-color: #3f4147;
-    --font-stack: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    --font-code: 'Consolas', 'Fira Code', 'Monaco', monospace;
+    --border-subtle: #1f2023;
+    --border-card: #3f4147;
+
+    --font-main: 'gg sans', 'Noto Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    --font-code: 'Consolas', 'Fira Code', 'Courier New', monospace;
 }
 
-* {
+/* Reset y Base */
+*, *::before, *::after {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
 }
 
-body {
+html, body {
+    width: 100%;
+    height: 100vh;
     background-color: var(--bg-servers);
     color: var(--text-primary);
-    font-family: var(--font-stack);
-    height: 100vh;
+    font-family: var(--font-main);
     overflow: hidden;
-    user-select: none;
+    -webkit-font-smoothing: antialiased;
 }
 
-/* Layout Grid estilo Discord */
+/* Contenedor Principal en Grid de 4 Columnas */
 .app-container {
     display: grid;
     grid-template-columns: 72px 240px 1fr 240px;
     height: 100vh;
+    width: 100vw;
+    overflow: hidden;
 }
 
-/* 1. Barra de Servidores / Workspaces */
+/* Scrollbar Personalizado Estilo Discord */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: #1a1b1e;
+    border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #111214;
+}
+
+/* --------------------------------------------------------------------------
+   1. BARRA LATERAL DE SERVIDORES / WORKSPACES
+   -------------------------------------------------------------------------- */
 .servers-sidebar {
     background-color: var(--bg-servers);
-    padding: 12px 0;
     display: flex;
     flex-direction: column;
     align-items: center;
+    padding: 12px 0;
     gap: 8px;
-    border-right: 1px solid rgba(255, 255, 255, 0.04);
+    user-select: none;
+    z-index: 20;
+}
+
+.server-icon-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+}
+
+/* Píldora blanca indicadora lateral */
+.server-pill {
+    position: absolute;
+    left: 0;
+    width: 4px;
+    height: 0px;
+    background-color: #ffffff;
+    border-radius: 0 4px 4px 0;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.server-icon-wrapper:hover .server-pill {
+    height: 20px;
+}
+
+.server-icon-wrapper.active .server-pill {
+    height: 40px;
 }
 
 .server-icon {
@@ -60,33 +125,43 @@ body {
     align-items: center;
     justify-content: center;
     color: var(--text-primary);
-    font-weight: bold;
+    font-size: 18px;
+    font-weight: 700;
     cursor: pointer;
-    transition: all 0.2s ease;
     text-decoration: none;
-    position: relative;
+    transition: border-radius 0.2s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s ease, color 0.2s ease;
 }
 
-.server-icon:hover, .server-icon.active {
+.server-icon:hover {
     border-radius: 16px;
     background-color: var(--accent-blurple);
-    color: #fff;
+    color: #ffffff;
+}
+
+.server-icon.active {
+    border-radius: 16px;
+    background-color: var(--accent-blurple);
+    color: #ffffff;
 }
 
 .server-separator {
     width: 32px;
     height: 2px;
-    background-color: var(--border-color);
+    background-color: rgba(255, 255, 255, 0.08);
+    border-radius: 1px;
     margin: 4px 0;
 }
 
-/* 2. Barra de Canales y DMs */
+/* --------------------------------------------------------------------------
+   2. BARRA DE CANALES Y MENSAJES DIRECTOS (DMs)
+   -------------------------------------------------------------------------- */
 .channels-sidebar {
     background-color: var(--bg-channels);
     display: flex;
     flex-direction: column;
     height: 100vh;
-    border-right: 1px solid rgba(0, 0, 0, 0.2);
+    border-top-left-radius: 8px;
+    overflow: hidden;
 }
 
 .workspace-header {
@@ -95,57 +170,75 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    font-weight: 600;
     font-size: 15px;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    font-weight: 700;
     color: var(--text-primary);
+    border-bottom: 1px solid var(--border-subtle);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.workspace-header:hover {
+    background-color: var(--bg-hover);
 }
 
 .channels-scroll {
     flex: 1;
     overflow-y: auto;
     padding: 12px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
 }
 
 .section-label {
-    font-size: 12px;
-    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11.5px;
     font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
     color: var(--text-muted);
     padding: 8px 8px 4px;
-    letter-spacing: 0.5px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    user-select: none;
 }
 
 .channel-item {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 10px;
+    padding: 7px 10px;
     border-radius: 4px;
     color: var(--text-muted);
     text-decoration: none;
-    font-size: 14px;
-    margin-bottom: 2px;
-    transition: background 0.15s, color 0.15s;
+    font-size: 14.5px;
+    font-weight: 500;
+    transition: background 0.12s, color 0.12s;
+    user-select: none;
 }
 
 .channel-item:hover {
-    background-color: rgba(255, 255, 255, 0.05);
-    color: var(--text-primary);
+    background-color: var(--bg-hover);
+    color: var(--text-secondary);
 }
 
 .channel-item.active {
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: var(--bg-active);
     color: #ffffff;
-    font-weight: 500;
+    font-weight: 600;
 }
 
 .channel-hash {
     font-size: 18px;
-    color: var(--text-muted);
+    font-weight: 600;
+    color: var(--text-channel-hash);
+    line-height: 1;
+}
+
+.channel-item.active .channel-hash {
+    color: #ffffff;
 }
 
 .dm-status-dot {
@@ -154,50 +247,81 @@ body {
     border-radius: 50%;
     background-color: var(--accent-success);
     display: inline-block;
+    flex-shrink: 0;
 }
 
-/* Barra inferior del usuario */
+/* Panel de Usuario Inferior */
 .user-panel {
+    height: 54px;
     background-color: var(--bg-user-bar);
-    height: 52px;
-    padding: 0 8px;
+    padding: 0 10px;
     display: flex;
     align-items: center;
     justify-content: space-between;
+    user-select: none;
 }
 
 .user-info {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 4px;
+    transition: background 0.15s;
+}
+
+.user-info:hover {
+    background-color: var(--bg-hover);
 }
 
 .user-avatar-sm {
-    width: 32px;
-    height: 32px;
-    background: var(--accent-blurple);
+    width: 34px;
+    height: 34px;
     border-radius: 50%;
+    background-color: var(--accent-blurple);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: bold;
-    font-size: 13px;
+    font-weight: 700;
+    font-size: 14px;
+    color: #ffffff;
+    position: relative;
+}
+
+.user-avatar-sm::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    right: -1px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: var(--accent-success);
+    border: 2px solid var(--bg-user-bar);
 }
 
 .user-name-tag {
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 600;
     color: var(--text-primary);
+    line-height: 1.2;
+}
+
+.user-subtext {
+    font-size: 11px;
+    color: var(--text-muted);
 }
 
 .btn-icon {
-    background: none;
+    background: transparent;
     border: none;
     color: var(--text-muted);
-    cursor: pointer;
+    font-size: 16px;
     padding: 6px;
     border-radius: 4px;
-    font-size: 14px;
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s;
     text-decoration: none;
     display: inline-flex;
     align-items: center;
@@ -206,15 +330,18 @@ body {
 
 .btn-icon:hover {
     color: var(--text-primary);
-    background-color: rgba(255, 255, 255, 0.08);
+    background-color: var(--bg-hover);
 }
 
-/* 3. Área Central del Chat */
+/* --------------------------------------------------------------------------
+   3. ÁREA PRINCIPAL DEL CHAT
+   -------------------------------------------------------------------------- */
 .chat-main {
     background-color: var(--bg-chat);
     display: flex;
     flex-direction: column;
     height: 100vh;
+    position: relative;
 }
 
 .chat-header {
@@ -223,9 +350,9 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    border-bottom: 1px solid var(--border-subtle);
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-    border-bottom: 1px solid rgba(0, 0, 0, 0.2);
-    background-color: var(--bg-chat);
+    user-select: none;
     z-index: 10;
 }
 
@@ -244,67 +371,87 @@ body {
 .header-topic {
     font-size: 13px;
     color: var(--text-muted);
-    border-left: 1px solid var(--border-color);
-    padding-left: 8px;
-    max-width: 400px;
+    border-left: 1px solid var(--border-card);
+    padding-left: 12px;
+    margin-left: 4px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    max-width: 480px;
 }
 
 .header-actions {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
 }
 
 .btn-badge-action {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    background: #232428;
+    background-color: #2b2d31;
     color: var(--text-primary);
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--border-card);
     padding: 6px 12px;
-    border-radius: 6px;
-    font-size: 12px;
+    border-radius: 4px;
+    font-size: 12.5px;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s ease;
 }
 
 .btn-badge-action:hover {
-    background: #383a40;
-    border-color: #5865f2;
+    background-color: #35373c;
+    border-color: var(--accent-blurple);
 }
 
 .btn-badge-danger {
-    border-color: rgba(242, 63, 67, 0.4);
+    border-color: rgba(242, 63, 67, 0.5);
     color: #ff7b72;
 }
 
 .btn-badge-danger:hover {
-    background: rgba(242, 63, 67, 0.15);
+    background-color: rgba(242, 63, 67, 0.15);
     border-color: var(--accent-danger);
 }
 
-/* Área de Mensajes con Scroll */
+/* Banner Flotante Alerta DLP */
+.dlp-alert-banner {
+    display: none;
+    background-color: var(--accent-danger);
+    color: #ffffff;
+    padding: 10px 16px;
+    font-size: 13.5px;
+    font-weight: 500;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    z-index: 40;
+}
+
+.dlp-alert-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* Lista de Mensajes */
 .messages-container {
     flex: 1;
     overflow-y: auto;
     padding: 16px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    user-select: text;
+    gap: 14px;
 }
 
 .message-card {
     display: flex;
-    gap: 16px;
+    gap: 14px;
     padding: 4px 8px;
-    border-radius: 6px;
-    transition: background 0.1s;
+    border-radius: 4px;
+    transition: background 0.1s ease;
 }
 
 .message-card:hover {
@@ -319,9 +466,11 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: bold;
+    font-weight: 700;
     font-size: 16px;
+    color: #ffffff;
     flex-shrink: 0;
+    user-select: none;
 }
 
 .msg-body {
@@ -336,9 +485,14 @@ body {
 }
 
 .msg-author {
-    font-weight: 600;
     font-size: 14.5px;
+    font-weight: 600;
     color: #ffffff;
+    cursor: pointer;
+}
+
+.msg-author:hover {
+    text-decoration: underline;
 }
 
 .msg-time {
@@ -349,17 +503,19 @@ body {
 .msg-content {
     font-size: 14.5px;
     line-height: 1.45;
-    color: #dbdee1;
+    color: var(--text-secondary);
     word-break: break-word;
+    user-select: text;
 }
 
-/* Tarjeta de Código */
+/* Bloques de Código Formateado */
 .code-container {
     margin-top: 6px;
-    background: #1e1e2e;
-    border-radius: 8px;
-    border: 1px solid #313244;
+    background-color: var(--bg-code-box);
+    border-radius: 6px;
+    border: 1px solid #2b2d31;
     overflow: hidden;
+    max-width: 800px;
 }
 
 .code-header {
@@ -367,81 +523,85 @@ body {
     justify-content: space-between;
     align-items: center;
     padding: 6px 12px;
-    background: #181825;
-    border-bottom: 1px solid #313244;
-    font-size: 12px;
-    font-weight: bold;
-    color: #a6adc8;
+    background-color: #121315;
+    border-bottom: 1px solid #2b2d31;
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--text-muted);
     text-transform: uppercase;
 }
 
 .btn-copy {
     background: transparent;
-    border: 1px solid #45475a;
-    color: #cdd6f4;
-    border-radius: 4px;
+    border: 1px solid #4e5058;
+    color: var(--text-secondary);
+    border-radius: 3px;
     padding: 3px 8px;
     font-size: 11px;
     cursor: pointer;
+    transition: all 0.15s;
 }
 
 .btn-copy:hover {
-    background: #313244;
+    background-color: #35373c;
+    color: #ffffff;
 }
 
-/* Tarjeta de Secreto Efímero Autodestructible */
+/* Tarjeta Secreto Efímero Autodestructible */
 .secret-card {
     margin-top: 8px;
-    background: linear-gradient(135deg, rgba(242, 63, 67, 0.12), rgba(0, 0, 0, 0.4));
-    border: 1px solid rgba(242, 63, 67, 0.5);
+    background: linear-gradient(135deg, rgba(242, 63, 67, 0.12) 0%, rgba(20, 20, 22, 0.8) 100%);
+    border: 1px solid rgba(242, 63, 67, 0.45);
     border-radius: 8px;
-    padding: 12px 16px;
+    padding: 14px 16px;
     max-width: 580px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
 }
 
 .secret-header {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-weight: bold;
+    font-size: 14.5px;
+    font-weight: 700;
     color: #ff7b72;
-    font-size: 14px;
     margin-bottom: 6px;
 }
 
 .secret-desc {
     font-size: 12.5px;
     color: var(--text-muted);
-    margin-bottom: 10px;
+    margin-bottom: 12px;
+    line-height: 1.4;
 }
 
 .btn-reveal-secret {
     background-color: var(--accent-danger);
     color: #ffffff;
     border: none;
-    border-radius: 6px;
+    border-radius: 4px;
     padding: 8px 16px;
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
-    transition: background 0.2s;
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    transition: background 0.15s;
 }
 
 .btn-reveal-secret:hover {
-    background-color: #d83a3e;
+    background-color: var(--accent-danger-hover);
 }
 
 .secret-revealed-box {
     margin-top: 10px;
-    background: #111214;
-    padding: 10px;
+    background: #0e0f11;
+    padding: 12px;
     border-radius: 6px;
     border: 1px dashed rgba(242, 63, 67, 0.6);
     font-family: var(--font-code);
-    font-size: 13px;
+    font-size: 13.5px;
     color: #a6e3a1;
     word-break: break-all;
     user-select: all;
@@ -449,33 +609,15 @@ body {
 
 .secret-timer-alert {
     margin-top: 8px;
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--accent-warning);
     font-weight: 600;
 }
 
-/* Barra de Alerta DLP en Tiempo Real */
-.dlp-alert-banner {
-    display: none;
-    background-color: rgba(242, 63, 67, 0.95);
-    color: #ffffff;
-    padding: 10px 16px;
-    font-size: 13.5px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-    z-index: 50;
-    align-items: center;
-    justify-content: space-between;
-}
-
-.dlp-alert-content {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-/* Input del Chat */
+/* Área de Input Inferior */
 .chat-input-area {
-    padding: 0 16px 20px;
+    padding: 0 16px 22px;
+    user-select: none;
 }
 
 .chat-input-box {
@@ -489,20 +631,20 @@ body {
 .chat-input-actions-bar {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     padding: 4px 6px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .input-action-btn {
-    background: none;
+    background: transparent;
     border: none;
     color: var(--text-muted);
-    font-size: 16px;
-    padding: 4px 6px;
+    font-size: 14px;
+    padding: 4px 8px;
     cursor: pointer;
     border-radius: 4px;
-    transition: color 0.15s;
+    transition: all 0.15s;
     display: inline-flex;
     align-items: center;
     gap: 4px;
@@ -510,7 +652,7 @@ body {
 
 .input-action-btn:hover {
     color: var(--text-primary);
-    background-color: rgba(255, 255, 255, 0.08);
+    background-color: var(--bg-hover);
 }
 
 .input-action-btn span {
@@ -524,23 +666,26 @@ body {
     color: var(--text-primary);
     font-size: 14.5px;
     font-family: inherit;
-    padding: 8px;
+    padding: 10px 8px;
     resize: none;
     outline: none;
-    max-height: 180px;
     height: 44px;
+    max-height: 200px;
     user-select: text;
 }
 
 .chat-textarea::placeholder {
-    color: var(--text-muted);
+    color: #6d6f78;
 }
 
-/* 4. Barra Lateral de Miembros */
+/* --------------------------------------------------------------------------
+   4. BARRA LATERAL DERECHA DE MIEMBROS
+   -------------------------------------------------------------------------- */
 .members-sidebar {
     background-color: var(--bg-member-list);
-    padding: 16px 12px;
+    padding: 16px 8px;
     overflow-y: auto;
+    user-select: none;
 }
 
 .member-item {
@@ -551,11 +696,11 @@ body {
     border-radius: 4px;
     cursor: pointer;
     margin-bottom: 2px;
-    transition: background 0.15s;
+    transition: background 0.12s;
 }
 
 .member-item:hover {
-    background-color: rgba(255, 255, 255, 0.06);
+    background-color: var(--bg-hover);
 }
 
 .member-avatar {
@@ -567,8 +712,10 @@ body {
     align-items: center;
     justify-content: center;
     font-size: 13px;
-    font-weight: bold;
+    font-weight: 700;
+    color: #ffffff;
     position: relative;
+    flex-shrink: 0;
 }
 
 .member-status {
@@ -578,21 +725,23 @@ body {
     width: 10px;
     height: 10px;
     border-radius: 50%;
-    border: 2px solid var(--bg-member-list);
     background-color: var(--accent-success);
+    border: 2px solid var(--bg-member-list);
 }
 
 .member-name {
     font-size: 14px;
-    color: #949ba4;
     font-weight: 500;
+    color: var(--text-muted);
 }
 
 .member-item:hover .member-name {
     color: var(--text-primary);
 }
 
-/* Modales */
+/* --------------------------------------------------------------------------
+   MODALES (Centrados con Overlay Blur)
+   -------------------------------------------------------------------------- */
 .modal-overlay {
     display: none;
     position: fixed;
@@ -600,7 +749,7 @@ body {
     left: 0;
     width: 100vw;
     height: 100vh;
-    background: rgba(0, 0, 0, 0.7);
+    background: rgba(0, 0, 0, 0.75);
     backdrop-filter: blur(4px);
     z-index: 1000;
     align-items: center;
@@ -608,32 +757,45 @@ body {
 }
 
 .modal-content {
-    background: #313338;
-    width: 520px;
-    border-radius: 10px;
+    background-color: #313338;
+    width: 500px;
+    max-width: 90vw;
+    border-radius: 8px;
     padding: 24px;
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
-    border: 1px solid var(--border-color);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+    border: 1px solid var(--border-card);
+    animation: modalPop 0.18s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+}
+
+@keyframes modalPop {
+    from { transform: scale(0.92); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
 }
 
 .modal-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 16px;
+    margin-bottom: 18px;
 }
 
 .modal-title {
     font-size: 18px;
     font-weight: 700;
+    color: #ffffff;
 }
 
 .modal-close {
-    background: none;
+    background: transparent;
     border: none;
     color: var(--text-muted);
-    font-size: 20px;
+    font-size: 18px;
     cursor: pointer;
+    padding: 4px;
+}
+
+.modal-close:hover {
+    color: #ffffff;
 }
 
 .form-group {
@@ -642,23 +804,25 @@ body {
 
 .form-label {
     display: block;
-    font-size: 12px;
+    font-size: 11.5px;
     font-weight: 700;
     color: var(--text-muted);
     text-transform: uppercase;
+    letter-spacing: 0.02em;
     margin-bottom: 8px;
 }
 
 .form-control {
     width: 100%;
-    background: #1e1f22;
+    background-color: #1e1f22;
     border: 1px solid #232428;
-    border-radius: 6px;
+    border-radius: 4px;
     padding: 10px 12px;
     color: var(--text-primary);
     font-size: 14px;
     font-family: inherit;
     outline: none;
+    transition: border-color 0.15s;
 }
 
 .form-control:focus {
@@ -669,18 +833,19 @@ body {
     display: flex;
     justify-content: flex-end;
     gap: 12px;
-    margin-top: 20px;
+    margin-top: 24px;
 }
 
 .btn-primary {
     background-color: var(--accent-blurple);
-    color: #fff;
+    color: #ffffff;
     border: none;
-    border-radius: 6px;
-    padding: 10px 18px;
-    font-weight: 600;
+    border-radius: 4px;
+    padding: 10px 20px;
     font-size: 14px;
+    font-weight: 600;
     cursor: pointer;
+    transition: background 0.15s;
 }
 
 .btn-primary:hover {
@@ -690,18 +855,23 @@ body {
 .btn-secondary {
     background: transparent;
     color: var(--text-primary);
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
+    border: 1px solid var(--border-card);
+    border-radius: 4px;
     padding: 10px 18px;
-    font-weight: 600;
     font-size: 14px;
+    font-weight: 600;
     cursor: pointer;
+    transition: all 0.15s;
+}
+
+.btn-secondary:hover {
+    background-color: var(--bg-hover);
 }
 
 .attachment-preview {
-    max-width: 320px;
-    max-height: 240px;
+    max-width: 360px;
+    max-height: 260px;
     border-radius: 8px;
     margin-top: 6px;
-    border: 1px solid #3f4147;
+    border: 1px solid var(--border-card);
 }

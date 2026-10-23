@@ -1,10 +1,11 @@
 import os
 from django.core.asgi import get_asgi_application
+from django.contrib.staticfiles.handlers import ASGIStaticFilesHandler
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 
-# Inicializar Django ASGI antes de importar consumidores o modelos
-django_asgi_app = get_asgi_application()
+# ASGIStaticFilesHandler permite a Daphne servir archivos estáticos (CSS, JS, iconos)
+django_asgi_app = ASGIStaticFilesHandler(get_asgi_application())
 
 from channels.routing import ProtocolTypeRouter, URLRouter
 from channels.auth import AuthMiddlewareStack
@@ -18,4 +19,5 @@ application = ProtocolTypeRouter({
         )
     ),
 })
+
 
