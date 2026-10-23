@@ -197,7 +197,11 @@
                             </span>
                             <span class="msg-time">{{ msg.created_at|date:"H:i" }}</span>
                         </div>
-                        {% if msg.attachments.all %}
+                        {% if msg.is_sticker and msg.sticker_image_url %}
+                            <div class="msg-sticker-wrapper">
+                                <img src="{{ msg.sticker_image_url }}" class="msg-sticker-img" alt="{{ msg.content }}" title="{{ msg.content }}">
+                            </div>
+                        {% elif msg.attachments.all %}
                             <div class="msg-content">{{ msg.content }}</div>
                             {% for att in msg.attachments.all %}
                                 {% if att.is_image %}
@@ -240,6 +244,9 @@
                         📎 <span>Adjuntar</span>
                         <input type="file" id="fileUploadInput" accept="image/png,image/jpeg,image/gif,image/webp" style="display: none;">
                     </label>
+                    <button class="input-action-btn" onclick="openStickerPicker()" title="Enviar Sticker">
+                        🎭 <span>Sticker</span>
+                    </button>
                     <button class="input-action-btn" onclick="openCodeModal()" title="Insertar bloque de código formateado">
                         💻 <span>Código</span>
                     </button>
@@ -482,6 +489,51 @@
                 <button type="submit" class="btn-primary">Abrir Chat</button>
             </div>
         </form>
+    </div>
+</div>
+<!-- Modal: Selector de Stickers estilo Discord -->
+<div class="modal-overlay" id="stickerPickerModal" onclick="if(event.target===this)closeStickerPicker()">
+    <div class="modal-content sticker-modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title">🎭 Stickers & Reacciones de Código</h3>
+            <button class="modal-close" onclick="closeStickerPicker()">✕</button>
+        </div>
+        
+        <!-- Pestañas del selector -->
+        <div class="sticker-picker-tabs">
+            <button class="sticker-tab-btn active" id="tabStickerCatBtn" onclick="showStickerTab('catalog')">Colección de Stickers</button>
+            <button class="sticker-tab-btn" id="tabStickerUploadBtn" onclick="showStickerTab('upload')">➕ Subir Nuevo</button>
+        </div>
+
+        <!-- Pestaña 1: Grid de stickers -->
+        <div id="stickerTabCatalog" class="sticker-tab-pane active">
+            <div class="sticker-picker-grid" id="stickerGridContainer">
+                <!-- Se cargan dinámicamente vía /api/stickers/ -->
+            </div>
+        </div>
+
+        <!-- Pestaña 2: Subir sticker personalizado -->
+        <div id="stickerTabUpload" class="sticker-tab-pane" style="display: none;">
+            <div class="form-group" style="margin-top: 8px;">
+                <label class="form-label">Nombre del Sticker</label>
+                <input type="text" id="customStickerNameInput" class="form-control" placeholder="Ej: LGTM, Bug Hunter, Coffee Time">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Categoría</label>
+                <input type="text" id="customStickerCategoryInput" class="form-control" value="Equipo" placeholder="Ej: Dev, Memes, Aprobación">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Archivo de Imagen (PNG, WebP, GIF, JPG)</label>
+                <input type="file" id="customStickerFileInput" class="form-control" accept="image/png,image/jpeg,image/webp,image/gif">
+                <small style="color: var(--text-muted); font-size: 11px; margin-top: 4px; display: block;">
+                    Se procesará y optimizará de forma segura en el servidor sin dependencias externas.
+                </small>
+            </div>
+            <div class="modal-actions" style="margin-top: 16px;">
+                <button class="btn-secondary" onclick="showStickerTab('catalog')">Volver al Catálogo</button>
+                <button class="btn-primary" onclick="uploadCustomSticker()">Subir y Guardar</button>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}

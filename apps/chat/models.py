@@ -104,6 +104,11 @@ class Message(models.Model):
     code_language = models.CharField(max_length=30, blank=True, default="")
     formatted_code_html = models.TextField(blank=True, default="")
     
+    # Manejo de Stickers y GIFs locales
+    is_sticker = models.BooleanField(default=False)
+    sticker = models.ForeignKey('Sticker', on_delete=models.SET_NULL, null=True, blank=True, related_name="messages")
+    sticker_image_url = models.CharField(max_length=500, blank=True, default="")
+    
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:
@@ -218,6 +223,11 @@ class Sticker(models.Model):
     category = models.CharField(max_length=50, default="Dev")
     image = models.ImageField(upload_to="stickers/")
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def get_image_url(self):
+        if self.image and hasattr(self.image, 'url'):
+            return self.image.url
+        return ""
 
     def __str__(self):
         return f"{self.category}:{self.name}"

@@ -495,3 +495,66 @@ def get_user_profile_api(request, username):
         'date_joined': target_user.date_joined.strftime("%d %b %Y"),
     })
 
+@login_required
+@require_GET
+def list_stickers_api(request):
+    """Retorna la lista de stickers disponibles agrupados por categoría."""
+    stickers = Sticker.objects.all().order_by('category', 'name')
+    data = []
+    for s in stickers:
+        data.append({
+            'id': str(s.id),
+            'name': s.name,
+            'category': s.category,
+            'url': s.get_image_url(),
+        })
+    return JsonResponse({'status': 'success', 'stickers': data})
+
+@login_required
+@require_POST
+def upload_sticker_api(request):
+    """Permite al equipo subir un sticker nuevo validado con Pillow."""
+    file_obj = request.FILES.get('sticker_file')
+    name = request.POST.get('name', 'Custom Sticker').strip()
+    category = request.POST.get('category', 'Comunidad').strip()
+
+    if not file_obj:
+        return JsonResponse({'error': 'No se proporcionó archivo de sticker.'}, status=400)
+
+    try:
+        img = Image.open(file_obj)
+        img.verify()
+        file_obj.seek(0)
+        
+        # Redimensionar a formato óptimo para sticker
+        img = Image.open(file_obj)
+        img = img.convert('RGBA')
+        img.thumbnail((200, 200), Image.Resampling.LANCZOS)
+        
+        buf = io.BytesIO()
+        img.save(buf, format='PNG')
+        buf.seek(0)
+        
+        sticker = Sticker(name=name[:50], category=category[:50])
+        sticker.image.save(f"custom_{uuid.uuid4().hex[:8]}.png", ContentFile(buf.read()), save=True)
+        
+        # Registrar auditoría
+        AuditService.log(
+            event_type='ATTACHMENT_UPLOADED',
+            actor=request.user,
+            severity='INFO',
+            request=request,
+            details={'type': 'sticker', 'name': sticker.name, 'category': sticker.category}
+        )
+
+        return JsonResponse({
+            'status': 'success',
+            'id': str(sticker.id),
+            'name': sticker.name,
+            'category': sticker.category,
+            'url': sticker.get_image_url(),
+        })
+    except Exception as e:
+        return JsonResponse({'error': 'La imagen de sticker no es válida.'}, status=400)
+
+

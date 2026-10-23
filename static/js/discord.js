@@ -114,7 +114,11 @@ document.addEventListener('DOMContentLoaded', () => {
         card.className = 'message-card';
 
         let innerContent = '';
-        if (msg.attachment_url) {
+        if (msg.is_sticker && msg.sticker_image_url) {
+            innerContent = `<div class="msg-sticker-wrapper">
+                                <img src="${msg.sticker_image_url}" class="msg-sticker-img" alt="${escapeHtml(msg.content)}" title="${escapeHtml(msg.content)}">
+                            </div>`;
+        } else if (msg.attachment_url) {
             innerContent = `<div class="msg-content">${escapeHtml(msg.content)}</div>
                             <img src="${msg.attachment_url}" class="attachment-preview" alt="Adjunto">`;
         } else if (msg.is_code && msg.formatted_code_html) {
@@ -421,6 +425,122 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (err) {
             console.error('Error al cargar la tarjeta de perfil:', err);
+        }
+    };
+
+    // ==========================================
+    // Selector y Envío de Stickers (Estilo Discord)
+    // ==========================================
+    const stickerModal = document.getElementById('stickerPickerModal');
+
+    window.openStickerPicker = function() {
+        if (stickerModal) {
+            stickerModal.style.display = 'flex';
+            loadStickers();
+        }
+    };
+
+    window.closeStickerPicker = function() {
+        if (stickerModal) stickerModal.style.display = 'none';
+    };
+
+    window.showStickerTab = function(tabName) {
+        const catPane = document.getElementById('stickerTabCatalog');
+        const uploadPane = document.getElementById('stickerTabUpload');
+        const catBtn = document.getElementById('tabStickerCatBtn');
+        const uploadBtn = document.getElementById('tabStickerUploadBtn');
+
+        if (tabName === 'upload') {
+            if (catPane) catPane.style.display = 'none';
+            if (uploadPane) uploadPane.style.display = 'flex';
+            if (catBtn) catBtn.classList.remove('active');
+            if (uploadBtn) uploadBtn.classList.add('active');
+        } else {
+            if (catPane) catPane.style.display = 'flex';
+            if (uploadPane) uploadPane.style.display = 'none';
+            if (catBtn) catBtn.classList.add('active');
+            if (uploadBtn) uploadBtn.classList.remove('active');
+        }
+    };
+
+    window.sendSticker = function(stickerUrl, stickerName) {
+        if (!socket || socket.readyState !== WebSocket.OPEN) return;
+        socket.send(JSON.stringify({
+            type: 'sticker',
+            is_sticker: true,
+            sticker_image_url: stickerUrl,
+            content: stickerName || 'Sticker'
+        }));
+        closeStickerPicker();
+    };
+
+    async function loadStickers() {
+        const grid = document.getElementById('stickerGridContainer');
+        if (!grid) return;
+        try {
+            const res = await fetch('/api/stickers/');
+            if (res.ok) {
+                const data = await res.json();
+                grid.innerHTML = '';
+                if (data.stickers && data.stickers.length > 0) {
+                    data.stickers.forEach(s => {
+                        const item = document.createElement('div');
+                        item.className = 'sticker-picker-item';
+                        item.title = `${s.category}: ${s.name}`;
+                        item.onclick = () => sendSticker(s.url, s.name);
+                        item.innerHTML = `
+                            <img src="${s.url}" alt="${s.name}" class="sticker-thumb">
+                            <div class="sticker-name-label">${escapeHtml(s.name.replace(/_/g, ' '))}</div>
+                        `;
+                        grid.appendChild(item);
+                    });
+                } else {
+                    grid.innerHTML = '<div style="color: var(--text-muted); padding: 20px; grid-column: 1/-1; text-align: center;">No hay stickers disponibles.</div>';
+                }
+            }
+        } catch (err) {
+            console.error('Error cargando stickers:', err);
+        }
+    }
+
+    // Subir Sticker Personalizado por el usuario
+    window.uploadCustomSticker = async function() {
+        const fileInput = document.getElementById('customStickerFileInput');
+        const nameInput = document.getElementById('customStickerNameInput');
+        const categoryInput = document.getElementById('customStickerCategoryInput');
+
+        if (!fileInput || !fileInput.files[0]) {
+            alert('Por favor selecciona una imagen para el sticker.');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('sticker_file', fileInput.files[0]);
+        formData.append('name', nameInput.value.trim() || 'Custom Sticker');
+        formData.append('category', categoryInput.value.trim() || 'Comunidad');
+
+        try {
+            const res = await fetch('/api/stickers/upload/', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken
+                },
+                body: formData
+            });
+
+            const data = await res.json();
+            if (res.ok) {
+                fileInput.value = '';
+                nameInput.value = '';
+                // Recargar catálogo de stickers y cambiar a pestaña de stickers
+                loadStickers();
+                showStickerTab('catalog');
+                alert('¡Sticker subido exitosamente a la biblioteca del equipo!');
+            } else {
+                alert(data.error || 'Error al subir el sticker');
+            }
+        } catch (err) {
+            alert('Error al comunicar con el servidor.');
         }
     };
 });

@@ -30,7 +30,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             )
 
     @database_sync_to_async
-    def save_chat_message(self, content, is_code, language):
+    def save_chat_message(self, content, is_code=False, language="", is_sticker=False, sticker_image_url=""):
         """Persiste el mensaje de manera asíncrona en PostgreSQL y renderiza Pygments si aplica."""
         channel = Channel.objects.filter(id=self.room_id).first()
         direct_conv = None if channel else DirectConversation.objects.filter(id=self.room_id).first()
@@ -44,7 +44,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
             author=self.user,
             content=content,
             is_code_snippet=is_code,
-            code_language=language or ""
+            code_language=language or "",
+            is_sticker=is_sticker,
+            sticker_image_url=sticker_image_url or ""
         )
         msg.save()
         
@@ -63,6 +65,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
             "is_code": msg.is_code_snippet,
             "language": msg.code_language,
             "formatted_code_html": msg.formatted_code_html,
+            "is_sticker": msg.is_sticker,
+            "sticker_image_url": msg.sticker_image_url,
             "created_at": msg.created_at.strftime("%H:%M")
         }
 
@@ -89,6 +93,25 @@ class ChatConsumer(AsyncWebsocketConsumer):
         content = data.get('content', '')
         is_code = bool(data.get('is_code', False))
         language = data.get('language', '')
+        is_sticker = bool(data.get('is_sticker', False))
+        sticker_image_url = data.get('sticker_image_url', '')
+
+        # Si es un sticker directo
+        if msg_type == 'sticker' or is_sticker:
+            saved_msg = await self.save_chat_message(
+                content=content or "Sticker",
+                is_sticker=True,
+                sticker_image_url=sticker_image_url
+            )
+            if saved_msg:
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        'type': 'chat_message',
+                        'payload': saved_msg
+                    }
+                )
+            return
 
         # 1. Inspección DLP en tiempo real (anti-fuga de datos)
         dlp_result = DataLossPreventionScanner.scan(content)
@@ -115,7 +138,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             return
 
         # 2. Persistencia en base de datos PostgreSQL
-        saved_msg = await self.save_chat_message(content, is_code, language)
+        saved_msg = await self.save_chat_message(content, is_code=is_code, language=language)
         if not saved_msg:
             return
 

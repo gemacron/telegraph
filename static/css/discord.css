@@ -987,3 +987,127 @@ html, body {
     gap: 6px;
 }
 
+/* ==========================================
+   Stickers & Picker Estilo Discord
+   ========================================== */
+.msg-sticker-wrapper {
+    margin-top: 6px;
+    display: inline-block;
+}
+
+.msg-sticker-img {
+    max-width: 160px;
+    max-height: 160px;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    border-radius: 8px;
+    transition: transform 0.18s cubic-bezier(0.2, 0, 0, 1), filter 0.18s ease;
+    cursor: pointer;
+    filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.45));
+}
+
+.msg-sticker-img:hover {
+    transform: scale(1.08);
+    filter: drop-shadow(0 8px 18px rgba(88, 101, 242, 0.4));
+}
+
+.sticker-modal-content {
+    width: 540px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.sticker-picker-tabs {
+    display: flex;
+    gap: 8px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 10px;
+    margin-bottom: 14px;
+}
+
+.sticker-tab-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 7px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.sticker-tab-btn:hover {
+    background: #35373c;
+    color: #ffffff;
+}
+
+.sticker-tab-btn.active {
+    background: var(--accent-blurple);
+    color: #ffffff;
+}
+
+.sticker-tab-pane {
+    display: flex;
+    flex-direction: column;
+}
+
+.sticker-picker-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(105px, 1fr));
+    gap: 12px;
+    max-height: 380px;
+    overflow-y: auto;
+    padding: 6px;
+    scrollbar-width: thin;
+    scrollbar-color: #1e1f22 transparent;
+}
+
+.sticker-picker-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background-color: #232428;
+    border: 1px solid #313338;
+    border-radius: 8px;
+    padding: 10px 8px;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    position: relative;
+}
+
+.sticker-picker-item:hover {
+    background-color: #2b2d31;
+    border-color: var(--accent-blurple);
+    transform: translateY(-3px);
+    box-shadow: 0 4px 12px rgba(88, 101, 242, 0.25);
+}
+
+.sticker-thumb {
+    width: 68px;
+    height: 68px;
+    object-fit: contain;
+    margin-bottom: 6px;
+    transition: transform 0.18s ease;
+}
+
+.sticker-picker-item:hover .sticker-thumb {
+    transform: scale(1.12);
+}
+
+.sticker-name-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    width: 100%;
+    margin-top: 2px;
+}
+
+
