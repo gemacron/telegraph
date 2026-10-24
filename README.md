@@ -1,4 +1,4 @@
-# 🛡️ DevCord (Telegraph) — Plataforma Colaborativa Segura para Programadores
+# 🛡️ Telegraph — Plataforma Colaborativa Segura para Programadores
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python: 3.12](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/)
@@ -6,13 +6,13 @@
 [![Database: PostgreSQL 16](https://img.shields.io/badge/Database-PostgreSQL%2016-blue.svg)](https://www.postgresql.org/)
 [![Containers: Podman](https://img.shields.io/badge/Container-Podman-purple.svg)](https://podman.io/)
 
-**DevCord** es una plataforma de comunicación y colaboración para equipos de programación de código abierto, con experiencia de usuario estilo **Discord**, pero diseñada desde cero con un enfoque inquebrantable en la **seguridad**, la **prevención de fuga de datos (DLP)**, el **cifrado de secretos efímeros autodestructibles** y la **ausencia total de servicios o bibliotecas externas no confiables**.
+**Telegraph** es una plataforma de comunicación y colaboración para equipos de programación de código abierto, con experiencia de usuario fluida y moderna, diseñada desde cero con un enfoque inquebrantable en la **seguridad**, la **prevención de fuga de datos (DLP)**, el **cifrado de secretos efímeros autodestructibles**, **llamadas y videollamadas WebRTC cifradas E2EE** y la **ausencia total de servicios o bibliotecas externas no confiables**.
 
 ---
 
 ## ✨ Características Principales
 
-### 1. 💬 Experiencia Colaborativa Estilo Discord
+### 1. 💬 Experiencia Colaborativa en Tiempo Real
 - **Espacios de Trabajo (Workspaces)** y **Canales Temáticos** (`#general`, `#codigo-python`, `#devops`, `#seguridad-dlp`).
 - **Mensajes Directos (DMs)** individuales privados entre programadores.
 - **Soporte Multimedia Seguro**: Carga de imágenes, avatares, iconos de servidor, stickers locales y GIFs validados a nivel de bytes mediante `Pillow` para neutralizar ataques polyglot o scripts maliciosos.
@@ -68,13 +68,14 @@ telegraph/
 │   └── wsgi.py                # WSGI application
 ├── static/
 │   ├── css/
-│   │   ├── discord.css        # UI temática oscura estilo Discord
+│   │   ├── telegraph.css      # UI temática oscura de Telegraph
 │   │   └── pygments.css       # Estilos de resaltado de código
 │   └── js/
-│       └── discord.js         # Cliente WebSocket, DLP interactivo y secretos
+│       ├── telegraph.js       # Cliente WebSocket, DLP interactivo y secretos
+│       └── telegraph_webrtc.js # Llamadas de voz y video E2EE WebRTC
 ├── templates/
 │   ├── auth/                  # Templates de inicio de sesión y registro
-│   ├── chat/                  # Template principal de la app estilo Discord
+│   ├── chat/                  # Template principal de la app Telegraph (telegraph_app.html)
 │   └── base.html              # Plantilla base segura
 ├── Containerfile              # Definición de contenedor OCI para Podman
 ├── Dockerfile                 # Compatibilidad alternativa

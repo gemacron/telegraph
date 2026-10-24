@@ -1,9 +1,9 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 {% load static %}
 
 {% block title %}
     {% if is_direct %}
-        @{{ other_user.username }} | DevCord
+        @{{ other_user.username }} | Telegraph
     {% else %}
         #{{ active_channel.name }} | {{ workspace.name }}
     {% endif %}
@@ -13,7 +13,7 @@
 <div class="app-container">
     <!-- 1. Barra Lateral de Servidores / Workspaces -->
     <nav class="servers-sidebar" aria-label="Workspaces">
-        <div class="server-icon-wrapper active" title="{{ workspace.name|default:'DevCord Workspace' }}">
+        <div class="server-icon-wrapper active" title="{{ workspace.name|default:'Telegraph Workspace' }}">
             <div class="server-pill"></div>
             <a href="{% url 'index' %}" class="server-icon">
                 {% if workspace.icon %}
@@ -30,9 +30,9 @@
         </div>
     </nav>
 
-    <!-- 2. Barra de Canales y DMs (Estilo Discord / Steam) -->
+    <!-- 2. Barra de Canales y DMs (Estilo Telegraph / Steam) -->
     <aside class="channels-sidebar">
-        <!-- Buscador superior estilo pill de Discord -->
+        <!-- Buscador superior estilo pill de Telegraph -->
         <div class="sidebar-search-container">
             <button type="button" class="sidebar-search-btn" onclick="openStartDmModal()" title="Buscar o iniciar una conversación">
                 Buscar o iniciar una conversación
@@ -63,7 +63,7 @@
 
             <div class="sidebar-divider"></div>
 
-            <!-- Sección Mensajes Directos (DMs) estilo Discord -->
+            <!-- Sección Mensajes Directos (DMs) estilo Telegraph -->
             <div class="section-label" style="display: flex; justify-content: space-between; align-items: center;">
                 <span>Mensajes directos</span>
                 <button class="btn-icon" onclick="openStartDmModal()" title="Iniciar nuevo chat privado" style="font-size: 16px; padding: 2px;">+</button>
@@ -122,7 +122,7 @@
             {% endfor %}
         </div>
 
-        <!-- Panel Inferior de Usuario (Estilo Discord Auténtico) -->
+        <!-- Panel Inferior de Usuario (Estilo Telegraph Auténtico) -->
         <div class="user-panel">
             <div class="user-info" onclick="openProfileModal()" title="Haga clic para editar su perfil">
                 <div class="user-avatar-sm">
@@ -145,11 +145,12 @@
                 <button type="button" class="btn-icon" title="Silenciar micrófono (Mute)" onclick="toggleMuteAudio(this)">🎙️</button>
                 <button type="button" class="btn-icon" title="Ensordecer audio (Deafen)" onclick="toggleDeafenAudio(this)">🎧</button>
                 <button type="button" class="btn-icon" onclick="openProfileModal()" title="Ajustes de Perfil">⚙️</button>
+                <a href="{% url 'logout' %}" class="btn-icon" title="Cerrar sesión en Telegraph" style="text-decoration: none;">🚪</a>
             </div>
         </div>
     </aside>
 
-    <!-- 3. Área Central del Chat (Estilo Discord / Steam) -->
+    <!-- 3. Área Central del Chat (Estilo Telegraph / Steam) -->
     <main class="chat-main">
         <header class="chat-header">
             <div class="header-title-group">
@@ -190,7 +191,7 @@
             </div>
         </header>
 
-        <!-- Overlay de Llamada de Voz / Videollamada Activa (Estilo Discord) -->
+        <!-- Overlay de Llamada de Voz / Videollamada Activa (Estilo Telegraph) -->
         <div class="active-call-overlay" id="activeCallOverlay">
             <div class="call-top-bar">
                 <div class="call-info-left">
@@ -319,7 +320,7 @@
                 </div>
             {% endfor %}
 
-            <!-- Historial de Mensajes con Separadores de Fecha estilo Discord -->
+            <!-- Historial de Mensajes con Separadores de Fecha estilo Telegraph -->
             {% for msg in messages %}
                 <!-- Separador de fecha por día -->
                 {% ifchanged msg.created_at|date:"Y-m-d" %}
@@ -362,7 +363,7 @@
                                 {% if att.is_image %}
                                     <img src="{{ att.file.url }}" class="attachment-preview" alt="Adjunto">
                                 {% else %}
-                                    <!-- Tarjeta de Archivo Adjunto Estilo Discord (message.txt) -->
+                                    <!-- Tarjeta de Archivo Adjunto Estilo Telegraph (message.txt) -->
                                     <div class="file-attachment-card">
                                         <div class="file-card-icon">📄</div>
                                         <div class="file-card-details">
@@ -400,7 +401,7 @@
             {% endfor %}
         </section>
 
-        <!-- Barra Inferior de Entrada de Texto Estilo Discord / Steam (Pill redondeado) -->
+        <!-- Barra Inferior de Entrada de Texto Estilo Telegraph / Steam (Pill redondeado) -->
         <footer class="chat-input-area" style="position: relative;">
             <!-- Panel Flotante Popover Estilo Telegram (Emojis, Stickers, GIFs) -->
             <div class="tg-popover" id="telegramPicker" onclick="event.stopPropagation()">
@@ -488,7 +489,7 @@
                 </div>
             </div>
 
-            <!-- Barra Pill Unificada Estilo Discord / Steam -->
+            <!-- Barra Pill Unificada Estilo Telegraph / Steam -->
             <div class="chat-input-pill">
                 <button type="button" class="chat-attach-circle-btn" id="btnAttachPlus" onclick="toggleAttachMenu(event)" title="Adjuntar archivo o crear elemento">+</button>
                 
@@ -509,7 +510,7 @@
         </footer>
     </main>
 
-    <!-- 4. Columna Derecha: Panel de Perfil de Usuario (Estilo Discord DM con Alexis Irala) o Lista de Miembros -->
+    <!-- 4. Columna Derecha: Panel de Perfil de Usuario (Estilo Telegraph DM con Alexis Irala) o Lista de Miembros -->
     {% if is_direct %}
         <aside class="profile-drawer-column" id="profileDrawerColumn">
             <!-- Banner superior -->
@@ -607,7 +608,7 @@
 <!-- MODALES DEL SISTEMA -->
 <!-- ========================================================================= -->
 
-<!-- Modal: Ajustes de Perfil de Usuario (Estilo Discord) -->
+<!-- Modal: Ajustes de Perfil de Usuario (Estilo Telegraph) -->
 <div class="modal-overlay" id="profileSettingsModal">
     <div class="modal-content" style="width: 580px;">
         <div class="modal-header">
@@ -666,15 +667,20 @@
                 <input type="password" name="new_password" class="form-control" placeholder="Dejar en blanco para mantener la contraseña actual">
             </div>
 
-            <div class="modal-actions">
-                <button type="button" class="btn-secondary" onclick="closeProfileModal()">Cancelar</button>
-                <button type="submit" class="btn-primary">Guardar Cambios</button>
+            <div class="profile-settings-footer-row" style="margin-top: 18px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: space-between; align-items: center;">
+                <a href="{% url 'logout' %}" class="btn-logout" title="Cerrar sesión actual en Telegraph">
+                    <span>🚪 Cerrar Sesión</span>
+                </a>
+                <div style="display: flex; gap: 10px;">
+                    <button type="button" class="btn-secondary" onclick="closeProfileModal()">Cancelar</button>
+                    <button type="submit" class="btn-primary">Guardar Cambios</button>
+                </div>
             </div>
         </form>
     </div>
 </div>
 
-<!-- Modal: Tarjeta Emergente de Perfil (Popout Card estilo Discord) -->
+<!-- Modal: Tarjeta Emergente de Perfil (Popout Card estilo Telegraph) -->
 <div class="modal-overlay" id="userProfileCardModal" onclick="if(event.target===this)closeUserProfileCard()">
     <div class="profile-card-container">
         <div class="profile-card-banner" id="profileCardBanner"></div>
@@ -701,7 +707,7 @@
             <div class="profile-card-divider"></div>
 
             <div class="profile-card-meta" id="profileCardJoined">
-                📅 Miembro de DevCord
+                📅 Miembro de Telegraph
             </div>
             
             <div style="margin-top: 16px; text-align: right;">
@@ -809,7 +815,7 @@
 <div class="modal-overlay" id="customStickerUploadModal" onclick="if(event.target===this)closeCustomStickerModal()">
     <div class="modal-content" style="width: 480px;">
         <div class="modal-header">
-            <h3 class="modal-title">➕ Importar o Subir Sticker a DevCord</h3>
+            <h3 class="modal-title">➕ Importar o Subir Sticker a Telegraph</h3>
             <button class="modal-close" onclick="closeCustomStickerModal()">✕</button>
         </div>
         <div class="form-group">
@@ -834,7 +840,7 @@
     </div>
 </div>
 
-<!-- Modal: Llamada Entrante (Estilo Discord con Tono Generado en Web Audio) -->
+<!-- Modal: Llamada Entrante (Estilo Telegraph con Tono Generado en Web Audio) -->
 <div class="modal-overlay" id="incomingCallModal" style="display: none; z-index: 2000;">
     <div class="incoming-call-box">
         <div class="incoming-avatar-pulsing">
@@ -875,15 +881,26 @@
 
 {% block extra_scripts %}
 <script>
-    window.DEV_ROOM_ID = "{{ room_id }}";
-    window.DEV_CURRENT_USER = "{{ request.user.username }}";
-    window.DEV_CURRENT_DISPLAY_NAME = "{{ request.user.profile.get_display_name|default:request.user.username }}";
-    window.DEV_CURRENT_AVATAR = "{% if request.user.profile.avatar %}{{ request.user.profile.avatar.url }}{% endif %}";
-    window.DEV_IS_DIRECT = {% if is_direct %}true{% else %}false{% endif %};
-    window.DEV_TARGET_USER = "{% if is_direct %}{{ other_user.username }}{% endif %}";
-    window.DEV_TARGET_DISPLAY_NAME = "{% if is_direct %}{{ other_user.profile.get_display_name|default:other_user.username }}{% endif %}";
-    window.DEV_TARGET_AVATAR = "{% if is_direct and other_user.profile.avatar %}{{ other_user.profile.avatar.url }}{% endif %}";
-    window.DEV_CSRF_TOKEN = "{{ csrf_token }}";
+    window.TELEGRAPH_ROOM_ID = "{{ room_id }}";
+    window.TELEGRAPH_CURRENT_USER = "{{ request.user.username }}";
+    window.TELEGRAPH_CURRENT_DISPLAY_NAME = "{{ request.user.profile.get_display_name|default:request.user.username }}";
+    window.TELEGRAPH_CURRENT_AVATAR = "{% if request.user.profile.avatar %}{{ request.user.profile.avatar.url }}{% endif %}";
+    window.TELEGRAPH_IS_DIRECT = {% if is_direct %}true{% else %}false{% endif %};
+    window.TELEGRAPH_TARGET_USER = "{% if is_direct %}{{ other_user.username }}{% endif %}";
+    window.TELEGRAPH_TARGET_DISPLAY_NAME = "{% if is_direct %}{{ other_user.profile.get_display_name|default:other_user.username }}{% endif %}";
+    window.TELEGRAPH_TARGET_AVATAR = "{% if is_direct and other_user.profile.avatar %}{{ other_user.profile.avatar.url }}{% endif %}";
+    window.TELEGRAPH_CSRF_TOKEN = "{{ csrf_token }}";
+
+    // Aliases para compatibilidad
+    window.DEV_ROOM_ID = window.TELEGRAPH_ROOM_ID;
+    window.DEV_CURRENT_USER = window.TELEGRAPH_CURRENT_USER;
+    window.DEV_CURRENT_DISPLAY_NAME = window.TELEGRAPH_CURRENT_DISPLAY_NAME;
+    window.DEV_CURRENT_AVATAR = window.TELEGRAPH_CURRENT_AVATAR;
+    window.DEV_IS_DIRECT = window.TELEGRAPH_IS_DIRECT;
+    window.DEV_TARGET_USER = window.TELEGRAPH_TARGET_USER;
+    window.DEV_TARGET_DISPLAY_NAME = window.TELEGRAPH_TARGET_DISPLAY_NAME;
+    window.DEV_TARGET_AVATAR = window.TELEGRAPH_TARGET_AVATAR;
+    window.DEV_CSRF_TOKEN = window.TELEGRAPH_CSRF_TOKEN;
 
     function openStartDmModal() {
         document.getElementById('startDmModal').style.display = 'flex';
@@ -897,7 +914,7 @@
         const csrfInput = document.createElement('input');
         csrfInput.type = 'hidden';
         csrfInput.name = 'csrfmiddlewaretoken';
-        csrfInput.value = window.DEV_CSRF_TOKEN;
+        csrfInput.value = window.TELEGRAPH_CSRF_TOKEN;
         
         const userInput = document.createElement('input');
         userInput.type = 'hidden';
@@ -911,6 +928,7 @@
     }
 </script>
 <script src="{% static 'vendor/lottie/lottie.min.js' %}"></script>
-<script src="{% static 'js/discord.js' %}"></script>
-<script src="{% static 'js/discord_webrtc.js' %}"></script>
+<script src="{% static 'js/telegraph.js' %}"></script>
+<script src="{% static 'js/telegraph_webrtc.js' %}"></script>
 {% endblock %}
+

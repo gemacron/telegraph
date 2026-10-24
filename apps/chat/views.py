@@ -36,7 +36,7 @@ def get_encryption_cipher():
 
 @login_required
 def index_view(request):
-    """Vista principal de la plataforma colaborativa estilo Discord."""
+    """Vista principal de la plataforma colaborativa Telegraph."""
     # Asegurar existencia de workspace y canales iniciales si está vacío
     workspace = Workspace.objects.first()
     if not workspace:
@@ -94,7 +94,7 @@ def channel_view(request, channel_id):
         'room_id': str(channel.id),
         'is_direct': False,
     }
-    return render(request, 'chat/discord_app.html', context)
+    return render(request, 'chat/telegraph_app.html', context)
 
 @login_required
 def dm_view(request, conversation_id):
@@ -124,7 +124,7 @@ def dm_view(request, conversation_id):
         'room_id': str(conversation.id),
         'is_direct': True,
     }
-    return render(request, 'chat/discord_app.html', context)
+    return render(request, 'chat/telegraph_app.html', context)
 
 @login_required
 @require_POST
@@ -411,7 +411,7 @@ def logout_view(request):
 @require_POST
 def update_profile_view(request):
     """
-    Actualiza el perfil del usuario estilo Discord:
+    Actualiza el perfil del usuario en Telegraph:
     Nombre para mostrar, bio, estado, color de banner y subida de avatar verificada con Pillow.
     """
     user = request.user
@@ -481,7 +481,7 @@ def update_profile_view(request):
 @require_GET
 def get_user_profile_api(request, username):
     """
-    Retorna la información del perfil para renderizar la Tarjeta de Perfil emergente (Popout Card) estilo Discord.
+    Retorna la información del perfil para renderizar la Tarjeta de Perfil emergente (Popout Card) en Telegraph.
     """
     target_user = get_object_or_404(User, username=username)
     profile, _ = UserProfile.objects.get_or_create(user=target_user)

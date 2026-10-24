@@ -1,9 +1,9 @@
-/* ==========================================================================
-   DevCord - Hoja de Estilos Tema Discord Dark Mode Auténtico
+﻿/* ==========================================================================
+   Telegraph - Hoja de Estilos Tema Telegraph Dark Mode Auténtico
    ========================================================================== */
 
 :root {
-    /* Paleta Oficial de Colores Discord */
+    /* Paleta Oficial de Colores Telegraph */
     --bg-servers: #1e1f22;
     --bg-channels: #2b2d31;
     --bg-chat: #313338;
@@ -64,7 +64,7 @@ html, body {
     grid-template-columns: 72px 248px 1fr 0px;
 }
 
-/* Scrollbar Personalizado Estilo Discord */
+/* Scrollbar Personalizado Estilo Telegraph */
 ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
@@ -908,6 +908,29 @@ html, body {
     background-color: var(--bg-hover);
 }
 
+.btn-logout {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(242, 63, 67, 0.12);
+    color: #f23f43;
+    border: 1px solid rgba(242, 63, 67, 0.35);
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-logout:hover {
+    background: rgba(242, 63, 67, 0.25);
+    color: #ffffff;
+    border-color: #f23f43;
+    transform: translateY(-1px);
+}
+
 .attachment-preview {
     max-width: 360px;
     max-height: 260px;
@@ -917,7 +940,7 @@ html, body {
 }
 
 /* --------------------------------------------------------------------------
-   TARJETA DE PERFIL DE USUARIO ESTILO DISCORD (POPOUT CARD)
+   TARJETA DE PERFIL DE USUARIO ESTILO Telegraph (POPOUT CARD)
    -------------------------------------------------------------------------- */
 .profile-card-container {
     width: 340px;
@@ -1028,7 +1051,7 @@ html, body {
 }
 
 /* ==========================================
-   Stickers & Picker Estilo Discord
+   Stickers & Picker Estilo Telegraph
    ========================================== */
 .msg-sticker-wrapper {
     margin-top: 6px;
@@ -1427,7 +1450,7 @@ html, body {
 }
 
 /* ==========================================================================
-   5. COMPONENTES ESTILO DISCORD / STEAM CHAT AUTÉNTICO
+   5. COMPONENTES ESTILO Telegraph / STEAM CHAT AUTÉNTICO
    ========================================================================== */
 
 /* Buscador superior de la barra lateral */
@@ -1696,7 +1719,7 @@ html, body {
     cursor: pointer;
 }
 
-/* Separador de fecha de chat estilo Discord */
+/* Separador de fecha de chat estilo Telegraph */
 .chat-date-divider {
     display: flex;
     align-items: center;
@@ -1718,7 +1741,7 @@ html, body {
     text-transform: capitalize;
 }
 
-/* Tarjeta de Archivo Adjunto Estilo Discord (message.txt) */
+/* Tarjeta de Archivo Adjunto Estilo Telegraph (message.txt) */
 .file-attachment-card {
     display: flex;
     align-items: center;
@@ -1804,7 +1827,7 @@ html, body {
     text-decoration: underline;
 }
 
-/* Barra de Input Redondeada Estilo Discord / Steam */
+/* Barra de Input Redondeada Estilo Telegraph / Steam */
 .chat-input-pill {
     background-color: var(--bg-input);
     border-radius: 8px;
@@ -2103,7 +2126,7 @@ html, body {
 }
 
 /* ==========================================================================
-   7. SISTEMA DE LLAMADAS Y VIDEOLLAMADAS WEBRTC (ESTILO DISCORD)
+   7. SISTEMA DE LLAMADAS Y VIDEOLLAMADAS WEBRTC (ESTILO Telegraph)
    ========================================================================== */
 
 /* Overlay superior de llamada activa */
@@ -2227,7 +2250,7 @@ html, body {
     transition: border-color 0.15s ease, transform 0.15s ease;
 }
 
-/* Halo verde brillante de voz activa estilo Discord */
+/* Halo verde brillante de voz activa estilo Telegraph */
 .call-participant-card.speaking {
     border-color: var(--accent-success);
     box-shadow: 0 0 14px rgba(35, 165, 90, 0.45);
@@ -2295,7 +2318,7 @@ html, body {
     font-size: 11px;
 }
 
-/* Barra de controles flotante estilo Discord */
+/* Barra de controles flotante estilo Telegraph */
 .call-bottom-controls {
     height: 60px;
     background-color: #111214;
@@ -2577,6 +2600,7 @@ html, body {
 .btn-toast-red {
     background-color: var(--accent-danger);
 }
+
 
 
 

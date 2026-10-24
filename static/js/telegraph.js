@@ -1,8 +1,8 @@
-// DevCord - Cliente WebSocket y Control de Seguridad DLP
+﻿// Telegraph - Cliente WebSocket y Control de Seguridad DLP
 document.addEventListener('DOMContentLoaded', () => {
-    const roomId = window.DEV_ROOM_ID;
-    const currentUser = window.DEV_CURRENT_USER;
-    const csrfToken = window.DEV_CSRF_TOKEN;
+    const roomId = window.TELEGRAPH_ROOM_ID || window.DEV_ROOM_ID;
+    const currentUser = window.TELEGRAPH_CURRENT_USER || window.DEV_CURRENT_USER;
+    const csrfToken = window.TELEGRAPH_CSRF_TOKEN || window.DEV_CSRF_TOKEN;
 
     const messagesContainer = document.getElementById('messagesContainer');
     const messageInput = document.getElementById('chatInput');
@@ -21,10 +21,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function connectWebSocket() {
         socket = new WebSocket(wsUrl);
+        window.TELEGRAPH_SOCKET = socket;
         window.DEV_SOCKET = socket;
 
         socket.onopen = () => {
-            console.log('[DevCord] Conexión WebSocket establecida con la sala:', roomId);
+            console.log('[Telegraph] Conexión WebSocket establecida con la sala:', roomId);
         };
 
         socket.onmessage = (event) => {
@@ -57,12 +58,12 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         socket.onclose = (e) => {
-            console.warn('[DevCord] WebSocket cerrado. Reintentando en 3s...', e.reason);
+            console.warn('[Telegraph] WebSocket cerrado. Reintentando en 3s...', e.reason);
             setTimeout(connectWebSocket, 3000);
         };
 
         socket.onerror = (err) => {
-            console.error('[DevCord] Error en WebSocket:', err);
+            console.error('[Telegraph] Error en WebSocket:', err);
         };
     }
 
@@ -405,7 +406,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ==========================================
-    // Modales de Perfil de Usuario (Estilo Discord)
+    // Modales de Perfil de Usuario (Estilo Telegraph)
     // ==========================================
     const profileModal = document.getElementById('profileSettingsModal');
     const userProfileCardModal = document.getElementById('userProfileCardModal');
@@ -438,7 +439,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Tarjeta emergente de perfil estilo Discord (al hacer clic en cualquier miembro)
+    // Tarjeta emergente de perfil estilo Telegraph (al hacer clic en cualquier miembro)
     window.openUserProfileCard = async function(username) {
         if (!userProfileCardModal) return;
         try {
@@ -461,7 +462,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('profileCardUsername').textContent = `@${data.username}`;
                 document.getElementById('profileCardStatus').textContent = data.custom_status || 'Sin estado';
                 document.getElementById('profileCardBio').textContent = data.bio || 'Este usuario aún no ha escrito su biografía.';
-                document.getElementById('profileCardJoined').textContent = `Miembro de DevCord desde ${data.date_joined}`;
+                document.getElementById('profileCardJoined').textContent = `Miembro de Telegraph desde ${data.date_joined}`;
 
                 userProfileCardModal.style.display = 'flex';
             }
@@ -792,7 +793,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // =========================================================================
-    // Manejadores Interactivos Estilo Discord / Steam
+    // Manejadores Interactivos Estilo Telegraph / Steam
     // =========================================================================
 
     const attachMenu = document.getElementById('chatAttachMenu');
@@ -886,4 +887,5 @@ document.addEventListener('DOMContentLoaded', () => {
         closeAttachMenu();
     });
 });
+
 

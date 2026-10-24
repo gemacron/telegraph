@@ -1,10 +1,10 @@
 services:
   db:
     image: docker.io/library/postgres:16-alpine
-    container_name: devcord_postgres
+    container_name: telegraph_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-devcord_db}
+      POSTGRES_DB: ${POSTGRES_DB:-telegraph_db}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres_secure_pass}
       POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
@@ -21,7 +21,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-devcord_db}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-telegraph_db}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -30,7 +30,7 @@ services:
 
   redis:
     image: docker.io/library/redis:7-alpine
-    container_name: devcord_redis
+    container_name: telegraph_redis
     restart: unless-stopped
     volumes:
       - redis_data:/data
@@ -41,7 +41,7 @@ services:
     build:
       context: .
       dockerfile: Containerfile
-    container_name: devcord_app
+    container_name: telegraph_app
     restart: unless-stopped
     depends_on:
       db:
@@ -52,7 +52,7 @@ services:
       DJANGO_DEBUG: "True"
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-insecure-key-for-local-dev-mode-change-in-prod}
       DJANGO_ALLOWED_HOSTS: "*"
-      POSTGRES_DB: ${POSTGRES_DB:-devcord_db}
+      POSTGRES_DB: ${POSTGRES_DB:-telegraph_db}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres_secure_pass}
       POSTGRES_HOST: db

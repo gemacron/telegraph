@@ -34,18 +34,18 @@ from apps.chat.models import Workspace, Channel
 
 # Crear superusuario admin si no existe
 if not User.objects.filter(username='admin').exists():
-    User.objects.create_superuser('admin', 'admin@devcord.local', 'Admin123456!')
+    User.objects.create_superuser('admin', 'admin@telegraph.local', 'Admin123456!')
     print('Superusuario creado: admin / Admin123456!')
 
 # Crear usuario dev demo si no existe
 if not User.objects.filter(username='developer').exists():
-    User.objects.create_user('developer', 'dev@devcord.local', 'DevPass123456!')
+    User.objects.create_user('developer', 'dev@telegraph.local', 'DevPass123456!')
     print('Usuario demo creado: developer / DevPass123456!')
 
 # Crear workspace y canales por defecto
 ws, _ = Workspace.objects.get_or_create(
-    name='DevCord Engineering',
-    slug='devcord-engineering',
+    name='Telegraph Engineering',
+    slug='telegraph-engineering',
     description='Espacio principal para desarrolladores de software'
 )
 for u in User.objects.all():

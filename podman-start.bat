@@ -1,6 +1,6 @@
 @echo off
 echo ==========================================================
-echo       Iniciando DevCord con Podman y PostgreSQL
+echo       Iniciando Telegraph con Podman y PostgreSQL
 echo ==========================================================
 
 where podman-compose >nul 2>nul

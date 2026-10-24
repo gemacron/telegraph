@@ -12,12 +12,12 @@ from pygments.formatters import HtmlFormatter
 
 class UserProfile(models.Model):
     """
-    Perfil de usuario estilo Discord:
+    Perfil de usuario estilo Telegraph:
     Manejo de avatar, display_name, biografía (about me), estado personalizado y color de banner.
     """
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
     display_name = models.CharField(max_length=80, blank=True, default="")
-    bio = models.TextField(max_length=300, blank=True, default="Desarrollador en DevCord")
+    bio = models.TextField(max_length=300, blank=True, default="Desarrollador en Telegraph")
     custom_status = models.CharField(max_length=120, blank=True, default="Programando 💻")
     avatar = models.ImageField(upload_to="avatars/%Y/%m/", null=True, blank=True)
     banner_color = models.CharField(max_length=7, default="#5865f2")

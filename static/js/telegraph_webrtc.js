@@ -1,4 +1,4 @@
-// DevCord - Motor WebRTC Nativo para Llamadas de Voz, Videollamadas y Screen Share
+﻿// Telegraph - Motor WebRTC Nativo para Llamadas de Voz, Videollamadas y Screen Share
 // Cumple con el estándar W3C/IETF sin dependencias externas ni librerías de terceros.
 
 (function() {
@@ -87,7 +87,7 @@
         stopRingingTone();
         ringInterval = setInterval(() => {
             if (isIncoming) {
-                // Tono doble de campana entrante Discord
+                // Tono doble de campana entrante Telegraph
                 playTone(880, 'sine', 0.25, 0.2);
                 setTimeout(() => playTone(987.77, 'sine', 0.3, 0.2), 150);
             } else {
@@ -106,7 +106,7 @@
     }
 
     // =========================================================================
-    // 2. DETECTOR DE VOZ ACTIVA (HALO VERDE BRILLANTE ESTILO DISCORD)
+    // 2. DETECTOR DE VOZ ACTIVA (HALO VERDE BRILLANTE ESTILO Telegraph)
     // =========================================================================
     function setupVoiceSpeakingDetector(stream) {
         try {
@@ -152,7 +152,7 @@
     // =========================================================================
     window.startCall = async function(type = 'audio') {
         currentCallType = type;
-        const targetUser = window.DEV_TARGET_USER;
+        const targetUser = window.TELEGRAPH_TARGET_USER || window.DEV_TARGET_USER;
         activeCallPeer = targetUser;
 
         try {
@@ -264,9 +264,9 @@
                     : `📞 ¡Llamada de voz entrante de ${callerName}!`;
 
                 currentDesktopNotif = new Notification(title, {
-                    body: 'Toca aquí para responder o entrar a DevCord',
+                    body: 'Toca aquí para responder o entrar a Telegraph',
                     icon: avatarUrl || undefined,
-                    tag: 'devcord-call',
+                    tag: 'telegraph-call',
                     requireInteraction: true
                 });
 
@@ -588,7 +588,7 @@
     window.endCall = function(notifyRemote = true) {
         if (notifyRemote && isCallActive) {
             sendWebRtcSignal('call_hangup', {
-                target: activeCallPeer || window.DEV_TARGET_USER || ''
+                target: activeCallPeer || window.TELEGRAPH_TARGET_USER || window.DEV_TARGET_USER || ''
             });
         }
 
@@ -657,8 +657,9 @@
     // 8. ENVÍO Y RECEPCIÓN DE MENSAJES WEBRTC POR WEBSOCKET
     // =========================================================================
     function sendWebRtcSignal(type, extra = {}) {
-        if (window.DEV_SOCKET && window.DEV_SOCKET.readyState === WebSocket.OPEN) {
-            window.DEV_SOCKET.send(JSON.stringify({
+        const sock = window.TELEGRAPH_SOCKET || window.DEV_SOCKET;
+        if (sock && sock.readyState === WebSocket.OPEN) {
+            sock.send(JSON.stringify({
                 type: type,
                 ...extra
             }));
@@ -714,3 +715,4 @@
         }
     };
 })();
+

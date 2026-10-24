@@ -3,7 +3,7 @@
 set -e
 
 echo "=========================================================="
-echo "      Iniciando DevCord con Podman y PostgreSQL"
+echo "      Iniciando Telegraph con Podman y PostgreSQL"
 echo "=========================================================="
 
 if command -v podman-compose &> /dev/null; then
