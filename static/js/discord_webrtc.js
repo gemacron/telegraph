@@ -19,6 +19,7 @@
     let callTimerInterval = null;
     let callSeconds = 0;
     let incomingCaller = null;
+    let activeCallPeer = null;
     let audioContext = null;
     let ringOscillator = null;
     let ringInterval = null;
@@ -152,6 +153,7 @@
     window.startCall = async function(type = 'audio') {
         currentCallType = type;
         const targetUser = window.DEV_TARGET_USER;
+        activeCallPeer = targetUser;
 
         try {
             // Solicitar permisos de audio y video según tipo
@@ -211,40 +213,169 @@
     }
 
     // =========================================================================
-    // 4. ATENCIÓN DE LLAMADA ENTRANTE
+    // 4. ATENCIÓN DE LLAMADA ENTRANTE Y NOTIFICACIONES MULTICANAL
     // =========================================================================
+    let currentDesktopNotif = null;
+    let titleBlinkInterval = null;
+    const originalPageTitle = document.title;
+
+    // Solicitar permiso de notificaciones de escritorio al usuario
+    if ("Notification" in window && Notification.permission === "default") {
+        document.addEventListener('click', () => {
+            if (Notification.permission === "default") {
+                Notification.requestPermission();
+            }
+        }, { once: true });
+    }
+
+    // Desbloquear AudioContext en la primera interacción para garantizar reproducción de audio
+    function unlockAudioContext() {
+        const ctx = getAudioContext();
+        if (ctx && ctx.state === 'suspended') {
+            ctx.resume();
+        }
+    }
+    document.addEventListener('click', unlockAudioContext);
+    document.addEventListener('keydown', unlockAudioContext);
+
+    function startTitleBlink(callerName, isVideo) {
+        stopTitleBlink();
+        let icon = isVideo ? '📹' : '📞';
+        let toggle = false;
+        titleBlinkInterval = setInterval(() => {
+            document.title = toggle ? `${icon} ¡Llamada de ${callerName}!` : `🔔 ¡LLAMADA ENTRANTE!`;
+            toggle = !toggle;
+        }, 800);
+    }
+
+    function stopTitleBlink() {
+        if (titleBlinkInterval) {
+            clearInterval(titleBlinkInterval);
+            titleBlinkInterval = null;
+            document.title = originalPageTitle;
+        }
+    }
+
+    function showDesktopCallNotification(callerName, isVideo, avatarUrl) {
+        if ("Notification" in window && Notification.permission === "granted") {
+            try {
+                const title = isVideo 
+                    ? `📹 ¡Videollamada entrante de ${callerName}!` 
+                    : `📞 ¡Llamada de voz entrante de ${callerName}!`;
+
+                currentDesktopNotif = new Notification(title, {
+                    body: 'Toca aquí para responder o entrar a DevCord',
+                    icon: avatarUrl || undefined,
+                    tag: 'devcord-call',
+                    requireInteraction: true
+                });
+
+                currentDesktopNotif.onclick = function() {
+                    window.focus();
+                    currentDesktopNotif.close();
+                };
+            } catch (err) {
+                console.warn('[Desktop Notification] Error:', err);
+            }
+        }
+    }
+
+    function closeDesktopCallNotification() {
+        if (currentDesktopNotif) {
+            currentDesktopNotif.close();
+            currentDesktopNotif = null;
+        }
+    }
+
     window.handleIncomingCallRequest = function(data) {
         incomingCaller = data.sender;
+        activeCallPeer = data.sender;
         currentCallType = data.call_type || 'audio';
+        const isVideo = currentCallType === 'video';
+        const callerName = data.sender_display || data.sender;
 
         const callerNameEl = document.getElementById('incomingCallCaller');
         const callerSubEl = document.getElementById('incomingCallType');
         const avatarEl = document.getElementById('incomingCallAvatar');
+        const modalTitleEl = document.getElementById('incomingCallTitle') || document.querySelector('#incomingCallModal .incoming-call-title');
+        const btnVoice = document.getElementById('btnIncomingAcceptVoice');
+        const btnVideo = document.getElementById('btnIncomingAcceptVideo');
 
-        if (callerNameEl) callerNameEl.textContent = data.sender_display || data.sender;
+        if (callerNameEl) callerNameEl.textContent = callerName;
+        if (modalTitleEl) {
+            modalTitleEl.textContent = isVideo ? '¡Videollamada Entrante!' : '¡Llamada de Voz Entrante!';
+            modalTitleEl.style.color = isVideo ? 'var(--accent-blurple)' : 'var(--accent-success)';
+        }
         if (callerSubEl) {
-            callerSubEl.textContent = data.call_type === 'video' 
-                ? 'Videollamada entrante segura (DTLS-SRTP)' 
-                : 'Llamada de voz entrante cifrada E2EE';
+            callerSubEl.textContent = isVideo 
+                ? '📹 Videollamada HD cifrada de extremo a extremo (DTLS-SRTP)' 
+                : '📞 Llamada de voz entrante cifrada E2EE';
         }
         if (avatarEl) {
             if (data.sender_avatar) {
                 avatarEl.innerHTML = `<img src="${data.sender_avatar}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
             } else {
-                avatarEl.textContent = (data.sender || 'U').charAt(0).toUpperCase();
+                avatarEl.textContent = isVideo ? '📹' : (data.sender || 'U').charAt(0).toUpperCase();
             }
         }
 
-        if (incomingModal) incomingModal.style.display = 'flex';
+        // Resaltar el botón correspondiente según el tipo de llamada (Voz o Video)
+        if (btnVideo && btnVoice) {
+            if (isVideo) {
+                btnVideo.classList.add('btn-call-highlight');
+                btnVoice.classList.remove('btn-call-highlight');
+            } else {
+                btnVoice.classList.add('btn-call-highlight');
+                btnVideo.classList.remove('btn-call-highlight');
+            }
+        }
+
+        // 1. Mostrar modal central de llamada entrante
+        const modal = incomingModal || document.getElementById('incomingCallModal');
+        if (modal) modal.style.display = 'flex';
+
+        // 2. Mostrar toast flotante superior
+        const incomingToast = document.getElementById('incomingCallToast');
+        if (incomingToast) {
+            const toastCaller = document.getElementById('incomingToastCaller');
+            const toastType = document.getElementById('incomingToastType');
+            if (toastCaller) toastCaller.textContent = callerName;
+            if (toastType) toastType.textContent = isVideo ? '📹 Videollamada entrante' : '📞 Llamada de voz entrante';
+            incomingToast.classList.add('show');
+        }
+
+        // 3. Iniciar tono sonoro de llamada (ringtone)
+        unlockAudioContext();
         startRingingTone(true);
+
+        // 4. Disparar notificación nativa de escritorio del navegador
+        showDesktopCallNotification(callerName, isVideo, data.sender_avatar);
+
+        // 5. Parpadeo en el título de la pestaña del navegador
+        startTitleBlink(callerName, isVideo);
+
+        // 6. Vibración en dispositivos con soporte
+        if (navigator.vibrate) {
+            navigator.vibrate([250, 150, 250, 150, 400]);
+        }
     };
 
-    window.acceptIncomingCall = async function(requestedType) {
+    function dismissIncomingAlerts() {
         stopRingingTone();
-        if (incomingModal) incomingModal.style.display = 'none';
+        stopTitleBlink();
+        closeDesktopCallNotification();
+        const modal = incomingModal || document.getElementById('incomingCallModal');
+        if (modal) modal.style.display = 'none';
+        const incomingToast = document.getElementById('incomingCallToast');
+        if (incomingToast) incomingToast.classList.remove('show');
+    }
+
+    window.acceptIncomingCall = async function(requestedType) {
+        dismissIncomingAlerts();
 
         const useVideo = requestedType === 'video' || currentCallType === 'video';
         currentCallType = useVideo ? 'video' : 'audio';
+        activeCallPeer = incomingCaller;
 
         try {
             localStream = await navigator.mediaDevices.getUserMedia({
@@ -268,8 +399,7 @@
     };
 
     window.rejectIncomingCall = function() {
-        stopRingingTone();
-        if (incomingModal) incomingModal.style.display = 'none';
+        dismissIncomingAlerts();
         if (incomingCaller) {
             sendWebRtcSignal('call_response', {
                 target: incomingCaller,
@@ -277,6 +407,7 @@
             });
             incomingCaller = null;
         }
+        activeCallPeer = null;
         playCallHangupTone();
     };
 
@@ -284,6 +415,7 @@
     // 5. NEGOCIACIÓN WEBRTC PEER CONNECTION (OFFER / ANSWER / ICE)
     // =========================================================================
     async function initPeerConnection(remoteUser, isInitiator) {
+        activeCallPeer = remoteUser;
         peerConnection = new RTCPeerConnection(rtcConfig);
 
         // Agregar tracks locales
@@ -456,7 +588,7 @@
     window.endCall = function(notifyRemote = true) {
         if (notifyRemote && isCallActive) {
             sendWebRtcSignal('call_hangup', {
-                target: window.DEV_TARGET_USER || ''
+                target: activeCallPeer || window.DEV_TARGET_USER || ''
             });
         }
 
@@ -472,6 +604,7 @@
             peerConnection = null;
         }
 
+        activeCallPeer = null;
         playCallHangupTone();
         hideCallOverlay();
     };
@@ -506,6 +639,20 @@
         if (callOverlay) callOverlay.classList.toggle('minimized');
     };
 
+    // Atajos de teclado para llamada entrante (Enter: Aceptar, Esc: Rechazar)
+    document.addEventListener('keydown', (e) => {
+        const modal = document.getElementById('incomingCallModal');
+        if (modal && modal.style.display === 'flex') {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                acceptIncomingCall(currentCallType);
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                rejectIncomingCall();
+            }
+        }
+    });
+
     // =========================================================================
     // 8. ENVÍO Y RECEPCIÓN DE MENSAJES WEBRTC POR WEBSOCKET
     // =========================================================================
@@ -529,6 +676,7 @@
             stopRingingTone();
             if (data.accepted) {
                 console.log('[WebRTC] Llamada aceptada por', sender);
+                activeCallPeer = sender;
                 initPeerConnection(sender, true);
             } else {
                 alert(`Llamada rechazada por ${sender}`);
@@ -559,6 +707,7 @@
             }
         } else if (type === 'call_hangup') {
             console.log('[WebRTC] Llamada finalizada por el otro participante');
+            dismissIncomingAlerts();
             endCall(false);
         } else if (type === 'voice_speaking') {
             setSpeakingHalo('remote', Boolean(data.is_speaking));

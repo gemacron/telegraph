@@ -2444,5 +2444,104 @@ html, body {
     transform: translateY(-2px);
 }
 
+.btn-call-action.btn-call-highlight {
+    animation: pulseGlow 1.2s infinite alternate;
+    box-shadow: 0 0 14px rgba(88, 101, 242, 0.6);
+    font-size: 13.5px;
+}
+
+@keyframes pulseGlow {
+    0% { transform: scale(1); box-shadow: 0 0 8px rgba(88, 101, 242, 0.4); }
+    100% { transform: scale(1.05); box-shadow: 0 0 18px rgba(88, 101, 242, 0.85); }
+}
+
+/* Toast Flotante Superior de Llamada Entrante */
+.incoming-call-toast {
+    position: fixed;
+    top: 20px;
+    right: 24px;
+    background-color: #232428;
+    border: 1px solid rgba(35, 165, 90, 0.4);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+    border-radius: 10px;
+    padding: 12px 16px;
+    display: none;
+    align-items: center;
+    gap: 14px;
+    z-index: 2500;
+    animation: slideInDown 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.incoming-call-toast.show {
+    display: flex;
+}
+
+@keyframes slideInDown {
+    from { transform: translateY(-50px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.incoming-toast-pulse {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background-color: var(--accent-success);
+    box-shadow: 0 0 10px var(--accent-success);
+    animation: callPulse 1.4s infinite;
+}
+
+.incoming-toast-body {
+    display: flex;
+    flex-direction: column;
+}
+
+.incoming-toast-caller {
+    font-size: 14px;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.incoming-toast-type {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.incoming-toast-buttons {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: 8px;
+}
+
+.btn-toast-circle {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    cursor: pointer;
+    transition: transform 0.15s ease;
+    color: #ffffff;
+}
+
+.btn-toast-circle:hover {
+    transform: scale(1.12);
+}
+
+.btn-toast-green {
+    background-color: var(--accent-success);
+}
+
+.btn-toast-blurple {
+    background-color: var(--accent-blurple);
+}
+
+.btn-toast-red {
+    background-color: var(--accent-danger);
+}
+
 
 

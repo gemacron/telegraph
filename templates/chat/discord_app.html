@@ -840,21 +840,35 @@
         <div class="incoming-avatar-pulsing">
             <div class="incoming-avatar-img" id="incomingCallAvatar">📞</div>
         </div>
-        <div class="incoming-call-title">¡Llamada Entrante!</div>
+        <div class="incoming-call-title" id="incomingCallTitle">¡Llamada Entrante!</div>
         <div class="incoming-call-caller" id="incomingCallCaller">Usuario</div>
         <div class="incoming-call-sub" id="incomingCallType">Llamada de voz entrante cifrada E2EE</div>
 
         <div class="incoming-actions">
-            <button type="button" class="btn-call-action btn-accept-voice" onclick="acceptIncomingCall('audio')" title="Aceptar llamada de voz">
+            <button type="button" class="btn-call-action btn-accept-voice" id="btnIncomingAcceptVoice" onclick="acceptIncomingCall('audio')" title="Aceptar llamada de voz">
                 📞 Aceptar Voz
             </button>
-            <button type="button" class="btn-call-action btn-accept-video" onclick="acceptIncomingCall('video')" title="Aceptar con video activado">
+            <button type="button" class="btn-call-action btn-accept-video" id="btnIncomingAcceptVideo" onclick="acceptIncomingCall('video')" title="Aceptar con video activado">
                 📹 Aceptar Video
             </button>
             <button type="button" class="btn-call-action btn-decline-call" onclick="rejectIncomingCall()" title="Rechazar llamada">
                 ❌ Rechazar
             </button>
         </div>
+    </div>
+</div>
+
+<!-- Toast Notificación Flotante Superior de Llamada Entrante -->
+<div class="incoming-call-toast" id="incomingCallToast">
+    <div class="incoming-toast-pulse"></div>
+    <div class="incoming-toast-body">
+        <div class="incoming-toast-caller" id="incomingToastCaller">Usuario</div>
+        <div class="incoming-toast-type" id="incomingToastType">📞 Llamada entrante</div>
+    </div>
+    <div class="incoming-toast-buttons">
+        <button type="button" class="btn-toast-circle btn-toast-green" onclick="acceptIncomingCall('audio')" title="Aceptar llamada de voz">📞</button>
+        <button type="button" class="btn-toast-circle btn-toast-blurple" onclick="acceptIncomingCall('video')" title="Aceptar videollamada">📹</button>
+        <button type="button" class="btn-toast-circle btn-toast-red" onclick="rejectIncomingCall()" title="Rechazar">✕</button>
     </div>
 </div>
 {% endblock %}

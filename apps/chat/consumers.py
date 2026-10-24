@@ -15,9 +15,14 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         self.room_id = self.scope['url_route']['kwargs']['room_id']
         self.room_group_name = f"chat_{self.room_id}"
+        self.user_group_name = f"user_{self.user.username}"
 
         await self.channel_layer.group_add(
             self.room_group_name,
+            self.channel_name
+        )
+        await self.channel_layer.group_add(
+            self.user_group_name,
             self.channel_name
         )
         await self.accept()
@@ -26,6 +31,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
         if hasattr(self, 'room_group_name'):
             await self.channel_layer.group_discard(
                 self.room_group_name,
+                self.channel_name
+            )
+        if hasattr(self, 'user_group_name'):
+            await self.channel_layer.group_discard(
+                self.user_group_name,
                 self.channel_name
             )
 
@@ -89,6 +99,18 @@ class ChatConsumer(AsyncWebsocketConsumer):
             details=details
         )
 
+    @database_sync_to_async
+    def get_user_profile_info(self):
+        avatar = ""
+        display = self.user.username
+        try:
+            if hasattr(self.user, 'profile'):
+                avatar = self.user.profile.get_avatar_url() or ""
+                display = self.user.profile.get_display_name() or self.user.username
+        except Exception:
+            pass
+        return display, avatar
+
     async def receive(self, text_data):
         try:
             data = json.loads(text_data)
@@ -107,31 +129,40 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         # Manejo de Señalización WebRTC para Llamadas de Voz, Videollamadas y Compartir Pantalla
         if msg_type.startswith('webrtc_') or msg_type in ['call_request', 'call_response', 'call_hangup', 'voice_speaking', 'join_call']:
-            sender_avatar = ""
-            sender_display = self.user.username
-            if hasattr(self.user, 'profile'):
-                sender_avatar = self.user.profile.get_avatar_url() or ""
-                sender_display = self.user.profile.get_display_name()
+            sender_display, sender_avatar = await self.get_user_profile_info()
+            target = data.get('target', '')
+            payload = {
+                'type': msg_type,
+                'sender': self.user.username,
+                'sender_display': sender_display,
+                'sender_avatar': sender_avatar,
+                'target': target,
+                'call_type': data.get('call_type', 'audio'), # 'audio' o 'video'
+                'sdp': data.get('sdp'),
+                'candidate': data.get('candidate'),
+                'accepted': data.get('accepted'),
+                'is_speaking': data.get('is_speaking', False),
+                'room_id': self.room_id
+            }
 
-            await self.channel_layer.group_send(
-                self.room_group_name,
-                {
-                    'type': 'webrtc_forward',
-                    'payload': {
-                        'type': msg_type,
-                        'sender': self.user.username,
-                        'sender_display': sender_display,
-                        'sender_avatar': sender_avatar,
-                        'target': data.get('target', ''),
-                        'call_type': data.get('call_type', 'audio'), # 'audio' o 'video'
-                        'sdp': data.get('sdp'),
-                        'candidate': data.get('candidate'),
-                        'accepted': data.get('accepted'),
-                        'is_speaking': data.get('is_speaking', False),
-                        'room_id': self.room_id
+            # Si la llamada tiene un destinatario específico (1 a 1), enviarla a su canal personal
+            if target and target != self.user.username:
+                await self.channel_layer.group_send(
+                    f"user_{target}",
+                    {
+                        'type': 'webrtc_forward',
+                        'payload': payload
                     }
-                }
-            )
+                )
+            else:
+                # Si es llamada grupal o en canal público
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        'type': 'webrtc_forward',
+                        'payload': payload
+                    }
+                )
             return
 
         # Si es un sticker directo
