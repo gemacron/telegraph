@@ -53,8 +53,13 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 ASGI_APPLICATION = 'config.asgi.application'
 
-# Configuración de base de datos (PostgreSQL nativo blindado en Podman / Producción)
-DB_ENGINE = os.getenv('DB_ENGINE', 'postgresql')
+# Configuración de base de datos (PostgreSQL en Podman/Producción, SQLite en Windows local)
+DB_ENGINE = os.getenv('DB_ENGINE')
+if not DB_ENGINE:
+    if os.path.exists('/.dockerenv') or os.getenv('POSTGRES_HOST') == 'db':
+        DB_ENGINE = 'postgresql'
+    else:
+        DB_ENGINE = 'sqlite'
 
 if DB_ENGINE == 'sqlite':
     DATABASES = {
@@ -80,10 +85,16 @@ else:
         }
     }
 
-# Channels layer (Redis oficial o fallback InMemory)
+# Channels layer (Redis en Podman/Producción, InMemory en Windows local)
+CHANNEL_BACKEND = os.getenv('CHANNEL_BACKEND')
+if not CHANNEL_BACKEND:
+    if os.path.exists('/.dockerenv') or os.getenv('REDIS_HOST') == 'redis':
+        CHANNEL_BACKEND = 'redis'
+    else:
+        CHANNEL_BACKEND = 'memory'
+
 REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
 REDIS_PORT = os.getenv('REDIS_PORT', '6379')
-CHANNEL_BACKEND = os.getenv('CHANNEL_BACKEND', 'redis')
 
 if CHANNEL_BACKEND == 'redis':
     CHANNEL_LAYERS = {
