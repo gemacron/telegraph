@@ -21,6 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function connectWebSocket() {
         socket = new WebSocket(wsUrl);
+        window.DEV_SOCKET = socket;
 
         socket.onopen = () => {
             console.log('[DevCord] Conexión WebSocket establecida con la sala:', roomId);
@@ -29,6 +30,14 @@ document.addEventListener('DOMContentLoaded', () => {
         socket.onmessage = (event) => {
             const data = JSON.parse(event.data);
             
+            // 0. Señales de WebRTC (Llamadas de voz, videollamadas y compartir pantalla)
+            if (data.type && (data.type.startsWith('webrtc_') || ['call_request', 'call_response', 'call_hangup', 'voice_speaking'].includes(data.type))) {
+                if (typeof window.handleWebRtcSignal === 'function') {
+                    window.handleWebRtcSignal(data);
+                }
+                return;
+            }
+
             // 1. Manejo de alertas de DLP (Bloqueo de fuga de datos sensibles)
             if (data.type === 'dlp_violation') {
                 showDlpAlert(data.message, data.rules, data.blocked_content);

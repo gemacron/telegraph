@@ -2067,5 +2067,382 @@ html, body {
     background-color: #474a52;
 }
 
+/* ==========================================================================
+   7. SISTEMA DE LLAMADAS Y VIDEOLLAMADAS WEBRTC (ESTILO DISCORD)
+   ========================================================================== */
+
+/* Overlay superior de llamada activa */
+.active-call-overlay {
+    display: none;
+    flex-direction: column;
+    background-color: #111214;
+    border-bottom: 2px solid #1e1f22;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 50;
+    position: relative;
+    max-height: 480px;
+}
+
+.active-call-overlay.active {
+    display: flex;
+}
+
+.active-call-overlay.fullscreen {
+    position: absolute;
+    top: 48px;
+    left: 0;
+    width: 100%;
+    height: calc(100% - 48px);
+    max-height: none;
+    z-index: 200;
+}
+
+.active-call-overlay.minimized {
+    max-height: 52px;
+    overflow: hidden;
+}
+
+.call-top-bar {
+    height: 46px;
+    padding: 0 16px;
+    background-color: #18191c;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.call-info-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.call-status-pulse {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: var(--accent-success);
+    box-shadow: 0 0 10px var(--accent-success);
+    animation: callPulse 1.6s infinite;
+}
+
+@keyframes callPulse {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(35, 165, 90, 0.7); }
+    70% { transform: scale(1.1); box-shadow: 0 0 0 8px rgba(35, 165, 90, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(35, 165, 90, 0); }
+}
+
+.call-title-text {
+    font-size: 14px;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.call-security-badge {
+    background-color: rgba(35, 165, 90, 0.15);
+    color: var(--accent-success);
+    border: 1px solid rgba(35, 165, 90, 0.3);
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.call-info-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.call-timer {
+    font-family: var(--font-code);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+/* Cuadrícula de participantes de la llamada */
+.call-grid-container {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 14px;
+    padding: 16px;
+    background-color: #1e1f22;
+    min-height: 220px;
+    max-height: 380px;
+    overflow-y: auto;
+}
+
+.active-call-overlay.fullscreen .call-grid-container {
+    max-height: none;
+}
+
+.call-participant-card {
+    background-color: #2b2d31;
+    border-radius: 8px;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 180px;
+    border: 2px solid transparent;
+    transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+/* Halo verde brillante de voz activa estilo Discord */
+.call-participant-card.speaking {
+    border-color: var(--accent-success);
+    box-shadow: 0 0 14px rgba(35, 165, 90, 0.45);
+}
+
+.call-video-stream {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    background-color: #000000;
+}
+
+.call-avatar-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+}
+
+.call-avatar-circle {
+    width: 84px;
+    height: 84px;
+    border-radius: 50%;
+    background-color: var(--accent-blurple);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 34px;
+    font-weight: 700;
+    color: #ffffff;
+    overflow: hidden;
+    border: 3px solid transparent;
+    transition: all 0.15s ease;
+}
+
+.call-avatar-circle img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.call-avatar-circle.speaking {
+    border-color: var(--accent-success);
+    box-shadow: 0 0 18px var(--accent-success);
+    transform: scale(1.06);
+}
+
+.call-user-tag {
+    position: absolute;
+    bottom: 8px;
+    left: 8px;
+    background-color: rgba(0, 0, 0, 0.7);
+    color: #ffffff;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.call-mic-icon {
+    font-size: 11px;
+}
+
+/* Barra de controles flotante estilo Discord */
+.call-bottom-controls {
+    height: 60px;
+    background-color: #111214;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 0 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.call-ctrl-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background-color: #2b2d31;
+    border: none;
+    color: #ffffff;
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.call-ctrl-btn:hover {
+    background-color: #3f4248;
+    transform: scale(1.1);
+}
+
+.call-ctrl-btn.active {
+    background-color: #ffffff;
+    color: #000000;
+}
+
+.call-ctrl-btn.muted {
+    background-color: var(--accent-danger);
+    color: #ffffff;
+}
+
+.call-ctrl-btn.btn-hangup {
+    background-color: var(--accent-danger);
+    width: 50px;
+    height: 50px;
+}
+
+.call-ctrl-btn.btn-hangup:hover {
+    background-color: var(--accent-danger-hover);
+    transform: scale(1.12);
+}
+
+/* Modal Emergente de Llamada Entrante */
+.incoming-call-box {
+    background-color: #232428;
+    border: 1px solid #1f2023;
+    border-radius: 12px;
+    width: 380px;
+    padding: 28px 24px 24px;
+    text-align: center;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+    animation: popIn 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes popIn {
+    0% { transform: scale(0.85); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.incoming-avatar-pulsing {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    margin: 0 auto 16px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.incoming-avatar-pulsing::before {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background-color: var(--accent-blurple);
+    opacity: 0.4;
+    animation: avatarPulse 1.4s infinite;
+}
+
+@keyframes avatarPulse {
+    0% { transform: scale(1); opacity: 0.6; }
+    100% { transform: scale(1.45); opacity: 0; }
+}
+
+.incoming-avatar-img {
+    width: 76px;
+    height: 76px;
+    border-radius: 50%;
+    background-color: var(--accent-blurple);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 30px;
+    color: #ffffff;
+    z-index: 2;
+    overflow: hidden;
+}
+
+.incoming-call-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent-success);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
+}
+
+.incoming-call-caller {
+    font-size: 20px;
+    font-weight: 700;
+    color: #ffffff;
+    margin-bottom: 4px;
+}
+
+.incoming-call-sub {
+    font-size: 12.5px;
+    color: var(--text-muted);
+    margin-bottom: 24px;
+}
+
+.incoming-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+
+.btn-call-action {
+    flex: 1;
+    padding: 10px 8px;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+}
+
+.btn-accept-voice {
+    background-color: var(--accent-success);
+    color: #ffffff;
+}
+
+.btn-accept-voice:hover {
+    background-color: #1e8e4e;
+    transform: translateY(-2px);
+}
+
+.btn-accept-video {
+    background-color: var(--accent-blurple);
+    color: #ffffff;
+}
+
+.btn-accept-video:hover {
+    background-color: var(--accent-blurple-hover);
+    transform: translateY(-2px);
+}
+
+.btn-decline-call {
+    background-color: var(--accent-danger);
+    color: #ffffff;
+}
+
+.btn-decline-call:hover {
+    background-color: var(--accent-danger-hover);
+    transform: translateY(-2px);
+}
+
 
 

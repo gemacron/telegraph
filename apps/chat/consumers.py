@@ -105,6 +105,35 @@ class ChatConsumer(AsyncWebsocketConsumer):
         sticker_animation_type = data.get('sticker_animation_type', '')
         sticker_lottie_json = data.get('sticker_lottie_json', '')
 
+        # Manejo de Señalización WebRTC para Llamadas de Voz, Videollamadas y Compartir Pantalla
+        if msg_type.startswith('webrtc_') or msg_type in ['call_request', 'call_response', 'call_hangup', 'voice_speaking', 'join_call']:
+            sender_avatar = ""
+            sender_display = self.user.username
+            if hasattr(self.user, 'profile'):
+                sender_avatar = self.user.profile.get_avatar_url() or ""
+                sender_display = self.user.profile.get_display_name()
+
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    'type': 'webrtc_forward',
+                    'payload': {
+                        'type': msg_type,
+                        'sender': self.user.username,
+                        'sender_display': sender_display,
+                        'sender_avatar': sender_avatar,
+                        'target': data.get('target', ''),
+                        'call_type': data.get('call_type', 'audio'), # 'audio' o 'video'
+                        'sdp': data.get('sdp'),
+                        'candidate': data.get('candidate'),
+                        'accepted': data.get('accepted'),
+                        'is_speaking': data.get('is_speaking', False),
+                        'room_id': self.room_id
+                    }
+                }
+            )
+            return
+
         # Si es un sticker directo
         if msg_type == 'sticker' or is_sticker:
             saved_msg = await self.save_chat_message(
@@ -175,3 +204,16 @@ class ChatConsumer(AsyncWebsocketConsumer):
             'type': 'new_secret',
             **event['payload']
         }))
+
+    async def webrtc_forward(self, event):
+        """Reenvío seguro de paquetes de señalización WebRTC (SDP, ICE, Call states)."""
+        payload = event['payload']
+        # No rebotar a uno mismo salvo en terminaciones
+        if payload.get('sender') == self.user.username and payload.get('type') != 'call_hangup':
+            return
+        # Si tiene target específico (llamada 1 a 1), enviar solo al destinatario
+        target = payload.get('target')
+        if target and target != self.user.username:
+            return
+
+        await self.send(text_data=json.dumps(payload))

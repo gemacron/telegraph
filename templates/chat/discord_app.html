@@ -173,8 +173,8 @@
 
             <!-- Acciones de cabecera: Llamada, Videollamada, Pin, Drawer Perfil, Buscador -->
             <div class="header-actions">
-                <button type="button" class="btn-icon-header" title="Iniciar llamada de voz" onclick="alert('Llamada de voz cifrada iniciada con el equipo.')">📞</button>
-                <button type="button" class="btn-icon-header" title="Iniciar videollamada" onclick="alert('Videollamada segura iniciada.')">📹</button>
+                <button type="button" class="btn-icon-header" title="Iniciar llamada de voz segura" onclick="startCall('audio')">📞</button>
+                <button type="button" class="btn-icon-header" title="Iniciar videollamada segura" onclick="startCall('video')">📹</button>
                 <button type="button" class="btn-icon-header" title="Mensajes fijados" onclick="alert('No hay mensajes fijados en esta conversación.')">📌</button>
                 <button type="button" class="btn-icon-header active" id="btnToggleProfileDrawer" title="Mostrar/Ocultar Perfil de Usuario" onclick="toggleProfileDrawer()">👤</button>
 
@@ -189,6 +189,85 @@
                 </a>
             </div>
         </header>
+
+        <!-- Overlay de Llamada de Voz / Videollamada Activa (Estilo Discord) -->
+        <div class="active-call-overlay" id="activeCallOverlay">
+            <div class="call-top-bar">
+                <div class="call-info-left">
+                    <span class="call-status-pulse"></span>
+                    <span class="call-title-text" id="callHeaderTitle">
+                        {% if is_direct %}Llamada con @{{ other_user.profile.get_display_name|default:other_user.username }}{% else %}Canal de Voz: #{{ active_channel.name }}{% endif %}
+                    </span>
+                    <span class="call-security-badge" title="Cifrado obligatorio de extremo a extremo DTLS-SRTP">🔒 E2EE Cifrado</span>
+                </div>
+                <div class="call-info-right">
+                    <span class="call-timer" id="callDurationTimer">00:00</span>
+                    <button type="button" class="btn-icon" title="Pantalla Completa" onclick="toggleCallFullscreen()">⤢</button>
+                    <button type="button" class="btn-icon" title="Minimizar llamada" onclick="toggleCallMinimize()">−</button>
+                </div>
+            </div>
+
+            <!-- Cuadrícula de Participantes de Video / Voz -->
+            <div class="call-grid-container" id="callParticipantsGrid">
+                <!-- Tarjeta Local (Tu usuario) -->
+                <div class="call-participant-card local" id="participantCard_local">
+                    <video id="localVideoElement" autoplay muted playsinline class="call-video-stream" style="display: none;"></video>
+                    <div class="call-avatar-placeholder" id="localAvatarPlaceholder">
+                        <div class="call-avatar-circle" id="localAvatarCircle">
+                            {% if request.user.profile.avatar %}
+                                <img src="{{ request.user.profile.avatar.url }}" alt="Avatar">
+                            {% else %}
+                                {{ request.user.username|make_list|first|upper }}
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="call-user-tag">
+                        <span>Tú ({{ request.user.profile.get_display_name|default:request.user.username }})</span>
+                        <span class="call-mic-icon" id="localMicIcon">🎙️</span>
+                    </div>
+                </div>
+
+                <!-- Tarjeta Remota (Participante o equipo) -->
+                <div class="call-participant-card remote" id="participantCard_remote">
+                    <video id="remoteVideoElement" autoplay playsinline class="call-video-stream" style="display: none;"></video>
+                    <div class="call-avatar-placeholder" id="remoteAvatarPlaceholder">
+                        <div class="call-avatar-circle" id="remoteAvatarCircle">
+                            {% if is_direct %}
+                                {% if other_user.profile.avatar %}
+                                    <img src="{{ other_user.profile.avatar.url }}" alt="Avatar">
+                                {% else %}
+                                    {{ other_user.username|make_list|first|upper }}
+                                {% endif %}
+                            {% else %}
+                                👥
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="call-user-tag">
+                        <span id="remoteUserNameTag">
+                            {% if is_direct %}{{ other_user.profile.get_display_name|default:other_user.username }}{% else %}Conectando compañeros...{% endif %}
+                        </span>
+                        <span class="call-mic-icon" id="remoteMicIcon">🎙️</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Barra de Controles Inferior de la Llamada -->
+            <div class="call-bottom-controls">
+                <button type="button" class="call-ctrl-btn" id="btnCallMic" onclick="toggleCallMic()" title="Silenciar / Activar Micrófono">
+                    🎙️
+                </button>
+                <button type="button" class="call-ctrl-btn" id="btnCallCam" onclick="toggleCallCam()" title="Encender / Apagar Cámara">
+                    📹
+                </button>
+                <button type="button" class="call-ctrl-btn" id="btnCallScreen" onclick="toggleScreenShare()" title="Compartir Pantalla (Código / VS Code)">
+                    🖥️
+                </button>
+                <button type="button" class="call-ctrl-btn btn-hangup" id="btnCallHangup" onclick="endCall()" title="Colgar y salir de la llamada">
+                    🔴
+                </button>
+            </div>
+        </div>
 
         <!-- Banner de Alerta en tiempo real de DLP -->
         <div class="dlp-alert-banner" id="dlpAlert">
@@ -754,12 +833,42 @@
         </div>
     </div>
 </div>
+
+<!-- Modal: Llamada Entrante (Estilo Discord con Tono Generado en Web Audio) -->
+<div class="modal-overlay" id="incomingCallModal" style="display: none; z-index: 2000;">
+    <div class="incoming-call-box">
+        <div class="incoming-avatar-pulsing">
+            <div class="incoming-avatar-img" id="incomingCallAvatar">📞</div>
+        </div>
+        <div class="incoming-call-title">¡Llamada Entrante!</div>
+        <div class="incoming-call-caller" id="incomingCallCaller">Usuario</div>
+        <div class="incoming-call-sub" id="incomingCallType">Llamada de voz entrante cifrada E2EE</div>
+
+        <div class="incoming-actions">
+            <button type="button" class="btn-call-action btn-accept-voice" onclick="acceptIncomingCall('audio')" title="Aceptar llamada de voz">
+                📞 Aceptar Voz
+            </button>
+            <button type="button" class="btn-call-action btn-accept-video" onclick="acceptIncomingCall('video')" title="Aceptar con video activado">
+                📹 Aceptar Video
+            </button>
+            <button type="button" class="btn-call-action btn-decline-call" onclick="rejectIncomingCall()" title="Rechazar llamada">
+                ❌ Rechazar
+            </button>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
     window.DEV_ROOM_ID = "{{ room_id }}";
     window.DEV_CURRENT_USER = "{{ request.user.username }}";
+    window.DEV_CURRENT_DISPLAY_NAME = "{{ request.user.profile.get_display_name|default:request.user.username }}";
+    window.DEV_CURRENT_AVATAR = "{% if request.user.profile.avatar %}{{ request.user.profile.avatar.url }}{% endif %}";
+    window.DEV_IS_DIRECT = {% if is_direct %}true{% else %}false{% endif %};
+    window.DEV_TARGET_USER = "{% if is_direct %}{{ other_user.username }}{% endif %}";
+    window.DEV_TARGET_DISPLAY_NAME = "{% if is_direct %}{{ other_user.profile.get_display_name|default:other_user.username }}{% endif %}";
+    window.DEV_TARGET_AVATAR = "{% if is_direct and other_user.profile.avatar %}{{ other_user.profile.avatar.url }}{% endif %}";
     window.DEV_CSRF_TOKEN = "{{ csrf_token }}";
 
     function openStartDmModal() {
@@ -789,4 +898,5 @@
 </script>
 <script src="{% static 'vendor/lottie/lottie.min.js' %}"></script>
 <script src="{% static 'js/discord.js' %}"></script>
+<script src="{% static 'js/discord_webrtc.js' %}"></script>
 {% endblock %}
