@@ -1,4 +1,4 @@
-﻿// Telegraph - Cliente WebSocket y Control de Seguridad DLP
+// Telegraph - Cliente WebSocket y Control de Seguridad DLP
 document.addEventListener('DOMContentLoaded', () => {
     const roomId = window.TELEGRAPH_ROOM_ID || window.DEV_ROOM_ID;
     const currentUser = window.TELEGRAPH_CURRENT_USER || window.DEV_CURRENT_USER;
@@ -849,28 +849,48 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Controles de audio de usuario (Mute / Deafen)
     window.toggleMuteAudio = function(btn) {
+        if (typeof window.toggleCallMic === 'function' && window.isWebRtcCallActive && window.isWebRtcCallActive()) {
+            window.toggleCallMic();
+            return;
+        }
+
+        btn = btn || document.getElementById('btnUserPanelMic');
+        if (!btn) return;
         btn.classList.toggle('active');
-        if (btn.classList.contains('active')) {
-            btn.textContent = '🔇';
-            btn.style.color = 'var(--accent-danger)';
-            btn.title = 'Micrófono silenciado';
-        } else {
-            btn.textContent = '🎙️';
-            btn.style.color = '';
-            btn.title = 'Silenciar micrófono';
+        const isMuted = btn.classList.contains('active');
+        btn.textContent = isMuted ? '🔇' : '🎙️';
+        btn.style.color = isMuted ? 'var(--accent-danger)' : '';
+        btn.title = isMuted ? 'Micrófono silenciado' : 'Silenciar micrófono';
+
+        if (typeof window.setLocalMicMuted === 'function') {
+            window.setLocalMicMuted(isMuted);
         }
     };
 
+    window.syncUserPanelMic = function(isMuted) {
+        const btn = document.getElementById('btnUserPanelMic');
+        if (!btn) return;
+        btn.classList.toggle('active', isMuted);
+        btn.textContent = isMuted ? '🔇' : '🎙️';
+        btn.style.color = isMuted ? 'var(--accent-danger)' : '';
+        btn.title = isMuted ? 'Micrófono silenciado' : 'Silenciar micrófono';
+    };
+
     window.toggleDeafenAudio = function(btn) {
+        btn = btn || document.getElementById('btnUserPanelDeafen');
+        if (!btn) return;
         btn.classList.toggle('active');
-        if (btn.classList.contains('active')) {
-            btn.textContent = '🔇';
-            btn.style.color = 'var(--accent-danger)';
-            btn.title = 'Audio ensordecido';
-        } else {
-            btn.textContent = '🎧';
-            btn.style.color = '';
-            btn.title = 'Ensordecer audio';
+        const isDeafened = btn.classList.contains('active');
+        btn.textContent = isDeafened ? '🔇' : '🎧';
+        btn.style.color = isDeafened ? 'var(--accent-danger)' : '';
+        btn.title = isDeafened ? 'Audio ensordecido' : 'Ensordecer audio';
+
+        // Si ensordece, también silenciar micrófono local
+        if (isDeafened) {
+            window.syncUserPanelMic(true);
+            if (typeof window.setLocalMicMuted === 'function') {
+                window.setLocalMicMuted(true);
+            }
         }
     };
 

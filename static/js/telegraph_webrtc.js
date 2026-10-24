@@ -1,4 +1,4 @@
-﻿// Telegraph - Motor WebRTC Nativo para Llamadas de Voz, Videollamadas y Screen Share
+// Telegraph - Motor WebRTC Nativo para Llamadas de Voz, Videollamadas y Screen Share
 // Cumple con el estándar W3C/IETF sin dependencias externas ni librerías de terceros.
 
 (function() {
@@ -25,6 +25,19 @@
     let ringInterval = null;
     let audioAnalyser = null;
     let isSpeaking = false;
+
+    // Estados de medios de los participantes (Sincronización en tiempo real)
+    let localMediaState = {
+        micMuted: false,
+        videoMuted: true,
+        screenSharing: false
+    };
+
+    let remoteMediaState = {
+        micMuted: false,
+        videoMuted: true,
+        screenSharing: false
+    };
 
     // Elementos del DOM
     const callOverlay = document.getElementById('activeCallOverlay');
@@ -124,7 +137,7 @@
                 let sum = 0;
                 for (let i = 0; i < buffer.length; i++) sum += buffer[i];
                 const avg = sum / buffer.length;
-                const speakingNow = avg > 18;
+                const speakingNow = !localMediaState.micMuted && (avg > 18);
 
                 if (speakingNow !== isSpeaking) {
                     isSpeaking = speakingNow;
@@ -171,7 +184,10 @@
             // Enviar solicitud de llamada al destinatario / sala
             sendWebRtcSignal('call_request', {
                 target: targetUser,
-                call_type: type
+                call_type: type,
+                mic_muted: localMediaState.micMuted,
+                video_muted: localMediaState.videoMuted,
+                screen_sharing: localMediaState.screenSharing
             });
 
             console.log(`[WebRTC] Llamada iniciada (${type}) hacia`, targetUser || 'Canal');
@@ -182,7 +198,119 @@
         }
     };
 
+    window.isWebRtcCallActive = function() {
+        return Boolean(isCallActive);
+    };
+
+    window.setLocalMicMuted = function(muted) {
+        if (!localStream) return;
+        const audioTrack = localStream.getAudioTracks()[0];
+        if (audioTrack) {
+            audioTrack.enabled = !muted;
+            localMediaState.micMuted = muted;
+            if (btnMic) {
+                btnMic.classList.toggle('muted', muted);
+                btnMic.textContent = muted ? '🔇' : '🎙️';
+            }
+            if (muted) {
+                isSpeaking = false;
+                setSpeakingHalo('local', false);
+                sendWebRtcSignal('voice_speaking', { is_speaking: false });
+            }
+            updateParticipantMediaUI('local', localMediaState);
+            if (window.syncUserPanelMic) {
+                window.syncUserPanelMic(muted);
+            }
+            sendLocalMediaState();
+        }
+    };
+
+    function updateParticipantMediaUI(who, state) {
+        if (!state) return;
+        const micIcon = document.getElementById(`${who}MicIcon`);
+        const cardMutedBadge = document.getElementById(`${who}CardMutedBadge`);
+        const cardCamOffBadge = document.getElementById(`${who}CardCamOffBadge`);
+        const cardScreenBadge = document.getElementById(`${who}CardScreenBadge`);
+        const screenPill = document.getElementById(`${who}ScreenPill`);
+        const participantCard = document.getElementById(`participantCard_${who}`);
+        const videoEl = document.getElementById(`${who}VideoElement`);
+        const avatarBox = document.getElementById(`${who}AvatarPlaceholder`);
+
+        // 1. Estado del Micrófono (Silenciado vs Activo)
+        if (state.micMuted) {
+            if (micIcon) {
+                micIcon.textContent = '🔇 Silenciado';
+                micIcon.className = 'call-mic-icon muted';
+                micIcon.title = who === 'local' ? 'Tu micrófono está silenciado' : 'Micrófono silenciado por el usuario';
+            }
+            if (cardMutedBadge) cardMutedBadge.style.display = 'flex';
+            if (participantCard) participantCard.classList.add('muted');
+            // Anular halo verde si está silenciado
+            setSpeakingHalo(who, false);
+        } else {
+            if (micIcon) {
+                micIcon.textContent = '🎙️';
+                micIcon.className = 'call-mic-icon active';
+                micIcon.title = who === 'local' ? 'Tu micrófono está activo' : 'Micrófono activo';
+            }
+            if (cardMutedBadge) cardMutedBadge.style.display = 'none';
+            if (participantCard) participantCard.classList.remove('muted');
+        }
+
+        // 2. Estado de la Cámara / Video
+        if (state.videoMuted) {
+            if (currentCallType === 'video' && cardCamOffBadge) {
+                cardCamOffBadge.style.display = 'flex';
+            } else if (cardCamOffBadge) {
+                cardCamOffBadge.style.display = 'none';
+            }
+            if (videoEl && !state.screenSharing) videoEl.style.display = 'none';
+            if (avatarBox && !state.screenSharing) avatarBox.style.display = 'flex';
+        } else {
+            if (cardCamOffBadge) cardCamOffBadge.style.display = 'none';
+            if (videoEl) videoEl.style.display = 'block';
+            if (avatarBox) avatarBox.style.display = 'none';
+        }
+
+        // 3. Estado de Compartir Pantalla
+        if (state.screenSharing) {
+            if (cardScreenBadge) cardScreenBadge.style.display = 'flex';
+            if (screenPill) screenPill.style.display = 'inline-block';
+            if (videoEl) videoEl.style.display = 'block';
+            if (avatarBox) avatarBox.style.display = 'none';
+        } else {
+            if (cardScreenBadge) cardScreenBadge.style.display = 'none';
+            if (screenPill) screenPill.style.display = 'none';
+        }
+    }
+
+    function sendLocalMediaState() {
+        const audioTrack = localStream ? localStream.getAudioTracks()[0] : null;
+        const videoTrack = localStream ? localStream.getVideoTracks()[0] : null;
+
+        localMediaState.micMuted = audioTrack ? !audioTrack.enabled : false;
+        localMediaState.videoMuted = videoTrack ? !videoTrack.enabled : (currentCallType !== 'video');
+        localMediaState.screenSharing = Boolean(screenStream);
+
+        updateParticipantMediaUI('local', localMediaState);
+        if (window.syncUserPanelMic) {
+            window.syncUserPanelMic(localMediaState.micMuted);
+        }
+
+        const targetUser = activeCallPeer || window.TELEGRAPH_TARGET_USER || window.DEV_TARGET_USER;
+        sendWebRtcSignal('call_peer_state', {
+            target: targetUser,
+            mic_muted: localMediaState.micMuted,
+            video_muted: localMediaState.videoMuted,
+            screen_sharing: localMediaState.screenSharing
+        });
+    }
+
     function setupLocalMedia(stream, isVideo) {
+        localMediaState.videoMuted = !isVideo;
+        localMediaState.micMuted = false;
+        localMediaState.screenSharing = false;
+
         if (localVideo) {
             localVideo.srcObject = stream;
             localVideo.style.display = isVideo ? 'block' : 'none';
@@ -190,6 +318,18 @@
         if (localAvatarBox) {
             localAvatarBox.style.display = isVideo ? 'none' : 'flex';
         }
+        if (btnCam) {
+            btnCam.classList.toggle('active', isVideo);
+            btnCam.classList.remove('muted');
+        }
+        if (btnMic) {
+            btnMic.classList.remove('muted');
+            btnMic.textContent = '🎙️';
+        }
+        if (window.syncUserPanelMic) {
+            window.syncUserPanelMic(false);
+        }
+        updateParticipantMediaUI('local', localMediaState);
         setupVoiceSpeakingDetector(stream);
     }
 
@@ -388,7 +528,10 @@
             sendWebRtcSignal('call_response', {
                 target: incomingCaller,
                 accepted: true,
-                call_type: currentCallType
+                call_type: currentCallType,
+                mic_muted: localMediaState.micMuted,
+                video_muted: localMediaState.videoMuted,
+                screen_sharing: localMediaState.screenSharing
             });
 
             initPeerConnection(incomingCaller, false);
@@ -429,12 +572,39 @@
         peerConnection.ontrack = (event) => {
             console.log('[WebRTC] Track remoto recibido:', event.track.kind);
             remoteStream = event.streams[0];
-            if (remoteVideo) {
-                remoteVideo.srcObject = remoteStream;
-                const hasVideo = remoteStream.getVideoTracks().length > 0;
-                remoteVideo.style.display = hasVideo ? 'block' : 'none';
-                if (remoteAvatarBox) remoteAvatarBox.style.display = hasVideo ? 'none' : 'flex';
+            if (event.track.kind === 'video') {
+                remoteMediaState.videoMuted = false;
+                if (remoteVideo) {
+                    remoteVideo.srcObject = remoteStream;
+                    remoteVideo.style.display = 'block';
+                }
+                if (remoteAvatarBox) remoteAvatarBox.style.display = 'none';
             }
+
+            // Detección nativa de mute/unmute a nivel de pista WebRTC
+            event.track.onmute = () => {
+                console.log('[WebRTC] Track remoto silenciado:', event.track.kind);
+                if (event.track.kind === 'audio') {
+                    remoteMediaState.micMuted = true;
+                    updateParticipantMediaUI('remote', remoteMediaState);
+                } else if (event.track.kind === 'video') {
+                    remoteMediaState.videoMuted = true;
+                    updateParticipantMediaUI('remote', remoteMediaState);
+                }
+            };
+
+            event.track.onunmute = () => {
+                console.log('[WebRTC] Track remoto reactivado:', event.track.kind);
+                if (event.track.kind === 'audio') {
+                    remoteMediaState.micMuted = false;
+                    updateParticipantMediaUI('remote', remoteMediaState);
+                } else if (event.track.kind === 'video') {
+                    remoteMediaState.videoMuted = false;
+                    updateParticipantMediaUI('remote', remoteMediaState);
+                }
+            };
+
+            updateParticipantMediaUI('remote', remoteMediaState);
         };
 
         // Candidatos ICE
@@ -453,6 +623,8 @@
                 stopRingingTone();
                 playCallConnectedTone();
                 startCallTimer();
+                // Sincronizar estado de medios bidireccional inmediatamente
+                sendLocalMediaState();
             } else if (peerConnection.connectionState === 'disconnected' || peerConnection.connectionState === 'failed') {
                 endCall(false);
             }
@@ -465,7 +637,10 @@
                 await peerConnection.setLocalDescription(offer);
                 sendWebRtcSignal('webrtc_offer', {
                     target: remoteUser,
-                    sdp: offer
+                    sdp: offer,
+                    mic_muted: localMediaState.micMuted,
+                    video_muted: localMediaState.videoMuted,
+                    screen_sharing: localMediaState.screenSharing
                 });
             } catch (err) {
                 console.error('[WebRTC] Error al crear oferta:', err);
@@ -481,12 +656,24 @@
         const audioTrack = localStream.getAudioTracks()[0];
         if (audioTrack) {
             audioTrack.enabled = !audioTrack.enabled;
+            localMediaState.micMuted = !audioTrack.enabled;
+
             if (btnMic) {
-                btnMic.classList.toggle('muted', !audioTrack.enabled);
-                btnMic.textContent = audioTrack.enabled ? '🎙️' : '🔇';
+                btnMic.classList.toggle('muted', localMediaState.micMuted);
+                btnMic.textContent = localMediaState.micMuted ? '🔇' : '🎙️';
             }
-            const localMicIcon = document.getElementById('localMicIcon');
-            if (localMicIcon) localMicIcon.textContent = audioTrack.enabled ? '🎙️' : '🔇';
+
+            if (localMediaState.micMuted) {
+                isSpeaking = false;
+                setSpeakingHalo('local', false);
+                sendWebRtcSignal('voice_speaking', { is_speaking: false });
+            }
+
+            updateParticipantMediaUI('local', localMediaState);
+            if (window.syncUserPanelMic) {
+                window.syncUserPanelMic(localMediaState.micMuted);
+            }
+            sendLocalMediaState();
         }
     };
 
@@ -497,28 +684,48 @@
         if (videoTrack) {
             // Ya tiene track, alternar enabled
             videoTrack.enabled = !videoTrack.enabled;
+            localMediaState.videoMuted = !videoTrack.enabled;
+
             if (localVideo) localVideo.style.display = videoTrack.enabled ? 'block' : 'none';
             if (localAvatarBox) localAvatarBox.style.display = videoTrack.enabled ? 'none' : 'flex';
-            if (btnCam) btnCam.classList.toggle('active', videoTrack.enabled);
+            if (btnCam) {
+                btnCam.classList.toggle('active', videoTrack.enabled);
+                btnCam.classList.toggle('muted', !videoTrack.enabled);
+            }
+            updateParticipantMediaUI('local', localMediaState);
+            sendLocalMediaState();
         } else {
             // Añadir video a llamada en curso
             try {
                 const camStream = await navigator.mediaDevices.getUserMedia({ video: true });
                 videoTrack = camStream.getVideoTracks()[0];
                 localStream.addTrack(videoTrack);
+                localMediaState.videoMuted = false;
+
                 if (peerConnection) {
                     peerConnection.addTrack(videoTrack, localStream);
                     // Renegociar
                     const offer = await peerConnection.createOffer();
                     await peerConnection.setLocalDescription(offer);
-                    sendWebRtcSignal('webrtc_offer', { target: window.DEV_TARGET_USER, sdp: offer });
+                    sendWebRtcSignal('webrtc_offer', {
+                        target: activeCallPeer || window.TELEGRAPH_TARGET_USER || window.DEV_TARGET_USER,
+                        sdp: offer,
+                        mic_muted: localMediaState.micMuted,
+                        video_muted: localMediaState.videoMuted,
+                        screen_sharing: localMediaState.screenSharing
+                    });
                 }
                 if (localVideo) {
                     localVideo.srcObject = localStream;
                     localVideo.style.display = 'block';
                 }
                 if (localAvatarBox) localAvatarBox.style.display = 'none';
-                if (btnCam) btnCam.classList.add('active');
+                if (btnCam) {
+                    btnCam.classList.add('active');
+                    btnCam.classList.remove('muted');
+                }
+                updateParticipantMediaUI('local', localMediaState);
+                sendLocalMediaState();
             } catch (e) {
                 alert('No se pudo activar la cámara: ' + e.message);
             }
@@ -553,6 +760,11 @@
             if (localAvatarBox) localAvatarBox.style.display = 'none';
             if (btnScreen) btnScreen.classList.add('active');
 
+            localMediaState.screenSharing = true;
+            localMediaState.videoMuted = false;
+            updateParticipantMediaUI('local', localMediaState);
+            sendLocalMediaState();
+
             screenTrack.onended = () => {
                 stopScreenShare();
             };
@@ -568,9 +780,13 @@
         }
         if (btnScreen) btnScreen.classList.remove('active');
 
+        localMediaState.screenSharing = false;
+
         // Restaurar video local
         if (localStream) {
             const videoTrack = localStream.getVideoTracks()[0];
+            localMediaState.videoMuted = videoTrack ? !videoTrack.enabled : true;
+
             if (peerConnection) {
                 const sender = peerConnection.getSenders().find(s => s.track && s.track.kind === 'video');
                 if (sender) sender.replaceTrack(videoTrack || null);
@@ -582,7 +798,12 @@
             if (localAvatarBox) {
                 localAvatarBox.style.display = (videoTrack && videoTrack.enabled) ? 'none' : 'flex';
             }
+        } else {
+            localMediaState.videoMuted = true;
         }
+
+        updateParticipantMediaUI('local', localMediaState);
+        sendLocalMediaState();
     }
 
     window.endCall = function(notifyRemote = true) {
@@ -671,14 +892,29 @@
         const type = data.type;
         const sender = data.sender;
 
+        // Si el paquete contiene estado de medios del peer, sincronizar inmediatamente
+        if (data.mic_muted !== undefined) {
+            remoteMediaState.micMuted = Boolean(data.mic_muted);
+            remoteMediaState.videoMuted = Boolean(data.video_muted);
+            remoteMediaState.screenSharing = Boolean(data.screen_sharing);
+            updateParticipantMediaUI('remote', remoteMediaState);
+        }
+
         if (type === 'call_request') {
             window.handleIncomingCallRequest(data);
+        } else if (type === 'call_peer_state') {
+            console.log('[WebRTC] Estado de medios del participante recibido:', sender, data);
+            remoteMediaState.micMuted = Boolean(data.mic_muted);
+            remoteMediaState.videoMuted = Boolean(data.video_muted);
+            remoteMediaState.screenSharing = Boolean(data.screen_sharing);
+            updateParticipantMediaUI('remote', remoteMediaState);
         } else if (type === 'call_response') {
             stopRingingTone();
             if (data.accepted) {
                 console.log('[WebRTC] Llamada aceptada por', sender);
                 activeCallPeer = sender;
                 initPeerConnection(sender, true);
+                sendLocalMediaState();
             } else {
                 alert(`Llamada rechazada por ${sender}`);
                 endCall(false);
@@ -692,12 +928,17 @@
             await peerConnection.setLocalDescription(answer);
             sendWebRtcSignal('webrtc_answer', {
                 target: sender,
-                sdp: answer
+                sdp: answer,
+                mic_muted: localMediaState.micMuted,
+                video_muted: localMediaState.videoMuted,
+                screen_sharing: localMediaState.screenSharing
             });
+            sendLocalMediaState();
         } else if (type === 'webrtc_answer') {
             if (peerConnection) {
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
             }
+            sendLocalMediaState();
         } else if (type === 'webrtc_ice_candidate') {
             if (peerConnection && data.candidate) {
                 try {
@@ -711,7 +952,12 @@
             dismissIncomingAlerts();
             endCall(false);
         } else if (type === 'voice_speaking') {
-            setSpeakingHalo('remote', Boolean(data.is_speaking));
+            // Si el participante remoto tiene su micrófono silenciado, anular halo verde
+            if (remoteMediaState.micMuted) {
+                setSpeakingHalo('remote', false);
+            } else {
+                setSpeakingHalo('remote', Boolean(data.is_speaking));
+            }
         }
     };
 })();

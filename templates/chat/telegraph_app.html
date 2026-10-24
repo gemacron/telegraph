@@ -1,4 +1,4 @@
-﻿{% extends 'base.html' %}
+{% extends 'base.html' %}
 {% load static %}
 
 {% block title %}
@@ -142,8 +142,8 @@
                 </div>
             </div>
             <div class="user-controls-icons">
-                <button type="button" class="btn-icon" title="Silenciar micrófono (Mute)" onclick="toggleMuteAudio(this)">🎙️</button>
-                <button type="button" class="btn-icon" title="Ensordecer audio (Deafen)" onclick="toggleDeafenAudio(this)">🎧</button>
+                <button type="button" class="btn-icon" id="btnUserPanelMic" title="Silenciar micrófono (Mute)" onclick="toggleMuteAudio(this)">🎙️</button>
+                <button type="button" class="btn-icon" id="btnUserPanelDeafen" title="Ensordecer audio (Deafen)" onclick="toggleDeafenAudio(this)">🎧</button>
                 <button type="button" class="btn-icon" onclick="openProfileModal()" title="Ajustes de Perfil">⚙️</button>
                 <a href="{% url 'logout' %}" class="btn-icon" title="Cerrar sesión en Telegraph" style="text-decoration: none;">🚪</a>
             </div>
@@ -222,9 +222,16 @@
                             {% endif %}
                         </div>
                     </div>
+                    <!-- Badges flotantes en la esquina superior de la tarjeta -->
+                    <div class="call-card-status-badges" id="localCardStatusBadges">
+                        <span class="call-card-badge muted" id="localCardMutedBadge" style="display: none;" title="Tu micrófono está silenciado">🔇</span>
+                        <span class="call-card-badge cam-off" id="localCardCamOffBadge" style="display: none;" title="Cámara desactivada">📷❌</span>
+                        <span class="call-card-badge screen" id="localCardScreenBadge" style="display: none;" title="Compartiendo pantalla">🖥️</span>
+                    </div>
                     <div class="call-user-tag">
                         <span>Tú ({{ request.user.profile.get_display_name|default:request.user.username }})</span>
                         <span class="call-mic-icon" id="localMicIcon">🎙️</span>
+                        <span class="call-badge-screen-pill" id="localScreenPill" style="display: none;">🖥️ En Vivo</span>
                     </div>
                 </div>
 
@@ -244,11 +251,18 @@
                             {% endif %}
                         </div>
                     </div>
+                    <!-- Badges flotantes en la esquina superior de la tarjeta remota -->
+                    <div class="call-card-status-badges" id="remoteCardStatusBadges">
+                        <span class="call-card-badge muted" id="remoteCardMutedBadge" style="display: none;" title="El participante ha silenciado su micrófono">🔇</span>
+                        <span class="call-card-badge cam-off" id="remoteCardCamOffBadge" style="display: none;" title="Cámara del participante apagada">📷❌</span>
+                        <span class="call-card-badge screen" id="remoteCardScreenBadge" style="display: none;" title="El participante está compartiendo pantalla">🖥️</span>
+                    </div>
                     <div class="call-user-tag">
                         <span id="remoteUserNameTag">
                             {% if is_direct %}{{ other_user.profile.get_display_name|default:other_user.username }}{% else %}Conectando compañeros...{% endif %}
                         </span>
                         <span class="call-mic-icon" id="remoteMicIcon">🎙️</span>
+                        <span class="call-badge-screen-pill" id="remoteScreenPill" style="display: none;">🖥️ En Vivo</span>
                     </div>
                 </div>
             </div>
