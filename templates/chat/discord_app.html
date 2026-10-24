@@ -132,11 +132,11 @@
                         {{ request.user.username|make_list|first|upper }}
                     {% endif %}
                 </div>
-                <div style="overflow: hidden; max-width: 110px;">
-                    <div class="user-name-tag" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                <div class="user-text-details">
+                    <div class="user-name-tag">
                         {{ request.user.profile.get_display_name|default:request.user.username }}
                     </div>
-                    <div class="user-subtext" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                    <div class="user-subtext">
                         {{ request.user.profile.custom_status|default:"En línea" }}
                     </div>
                 </div>

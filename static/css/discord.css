@@ -53,7 +53,7 @@ html, body {
 /* Contenedor Principal en Grid con soporte para Perfil Drawer de 340px */
 .app-container {
     display: grid;
-    grid-template-columns: 72px 240px 1fr 340px;
+    grid-template-columns: 72px 248px 1fr 340px;
     height: 100vh;
     width: 100vw;
     overflow: hidden;
@@ -61,7 +61,7 @@ html, body {
 }
 
 .app-container.profile-drawer-hidden {
-    grid-template-columns: 72px 240px 1fr 0px;
+    grid-template-columns: 72px 248px 1fr 0px;
 }
 
 /* Scrollbar Personalizado Estilo Discord */
@@ -257,23 +257,31 @@ html, body {
 
 /* Panel de Usuario Inferior */
 .user-panel {
-    height: 54px;
+    height: 52px;
     background-color: var(--bg-user-bar);
-    padding: 0 10px;
+    padding: 0 8px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     user-select: none;
+    box-sizing: border-box;
+    width: 100%;
+    flex-shrink: 0;
+    overflow: hidden;
 }
 
 .user-info {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     cursor: pointer;
-    padding: 4px 6px;
+    padding: 3px 5px;
     border-radius: 4px;
     transition: background 0.15s;
+    min-width: 0;
+    flex: 1;
+    margin-right: 4px;
+    overflow: hidden;
 }
 
 .user-info:hover {
@@ -281,8 +289,9 @@ html, body {
 }
 
 .user-avatar-sm {
-    width: 34px;
-    height: 34px;
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
     border-radius: 50%;
     background-color: var(--accent-blurple);
     display: flex;
@@ -292,6 +301,7 @@ html, body {
     font-size: 14px;
     color: #ffffff;
     position: relative;
+    flex-shrink: 0;
 }
 
 .user-avatar-sm::after {
@@ -306,36 +316,61 @@ html, body {
     border: 2px solid var(--bg-user-bar);
 }
 
+.user-text-details {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
 .user-name-tag {
-    font-size: 14px;
+    font-size: 13.5px;
     font-weight: 600;
     color: var(--text-primary);
     line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .user-subtext {
     font-size: 11px;
     color: var(--text-muted);
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-.btn-icon {
-    background: transparent;
-    border: none;
-    color: var(--text-muted);
+.user-controls-icons {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    gap: 2px;
+}
+
+.user-controls-icons .btn-icon {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    padding: 0;
     font-size: 16px;
-    padding: 6px;
     border-radius: 4px;
-    cursor: pointer;
-    transition: color 0.15s, background 0.15s;
-    text-decoration: none;
-    display: inline-flex;
+    display: flex;
     align-items: center;
     justify-content: center;
+    color: var(--text-muted);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
 }
 
-.btn-icon:hover {
-    color: var(--text-primary);
+.user-controls-icons .btn-icon:hover {
     background-color: var(--bg-hover);
+    color: var(--text-primary);
 }
 
 /* --------------------------------------------------------------------------
