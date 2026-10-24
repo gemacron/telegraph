@@ -32,7 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = JSON.parse(event.data);
             
             // 0. Señales de WebRTC (Llamadas de voz, videollamadas y compartir pantalla)
-            if (data.type && (data.type.startsWith('webrtc_') || ['call_request', 'call_response', 'call_hangup', 'voice_speaking'].includes(data.type))) {
+            if (data.type && (data.type.startsWith('webrtc_') || data.type.startsWith('call_') || data.type === 'voice_speaking')) {
                 if (typeof window.handleWebRtcSignal === 'function') {
                     window.handleWebRtcSignal(data);
                 }

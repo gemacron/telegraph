@@ -143,7 +143,11 @@
                     isSpeaking = speakingNow;
                     setSpeakingHalo('local', isSpeaking);
                     // Emitir a los demás para sincronizar anillo verde
-                    sendWebRtcSignal('voice_speaking', { is_speaking: isSpeaking });
+                    const targetUser = activeCallPeer || window.TELEGRAPH_TARGET_USER || window.DEV_TARGET_USER;
+                    sendWebRtcSignal('voice_speaking', {
+                        target: targetUser,
+                        is_speaking: isSpeaking
+                    });
                 }
                 requestAnimationFrame(checkVolume);
             };
@@ -154,11 +158,34 @@
     }
 
     function setSpeakingHalo(who, speaking) {
+        // Si el usuario correspondiente está silenciado, no mostrar jamás el halo verde
+        const isUserMuted = (who === 'local') ? localMediaState.micMuted : remoteMediaState.micMuted;
+        if (speaking && isUserMuted) {
+            speaking = false;
+        }
+
         const card = document.getElementById(`participantCard_${who}`);
         const avatarCircle = document.getElementById(`${who}AvatarCircle`);
         if (card) card.classList.toggle('speaking', speaking);
         if (avatarCircle) avatarCircle.classList.toggle('speaking', speaking);
     }
+
+    // Solicitud explícita de permisos de cámara y micrófono para el usuario
+    window.requestMediaPermissions = async function() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: true,
+                video: { width: { ideal: 1280 }, height: { ideal: 720 } }
+            });
+            // Una vez otorgados, liberar las pistas de prueba para no dejar la luz de la cámara encendida
+            stream.getTracks().forEach(t => t.stop());
+            console.log('[WebRTC] Permisos de micrófono y cámara concedidos.');
+            return true;
+        } catch (e) {
+            console.warn('[WebRTC] Permisos no otorgados:', e);
+            return false;
+        }
+    };
 
     // =========================================================================
     // 3. INICIO Y GESTIÓN DE LLAMADAS (VOZ Y VIDEO)
@@ -169,13 +196,24 @@
         activeCallPeer = targetUser;
 
         try {
-            // Solicitar permisos de audio y video según tipo
-            const constraints = {
-                audio: true,
-                video: type === 'video' ? { width: { ideal: 1280 }, height: { ideal: 720 } } : false
-            };
+            // Solicitar permisos combinados de micrófono y cámara desde el inicio
+            let stream = null;
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    audio: true,
+                    video: { width: { ideal: 1280 }, height: { ideal: 720 } }
+                });
+                // Si la llamada fue iniciada en modo solo audio, mantener la cámara apagada al inicio
+                if (type !== 'video') {
+                    const vt = stream.getVideoTracks()[0];
+                    if (vt) vt.enabled = false;
+                }
+            } catch (camErr) {
+                console.warn('[WebRTC] Cámara no disponible o denegada, solicitando solo audio:', camErr);
+                stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            }
 
-            localStream = await navigator.mediaDevices.getUserMedia(constraints);
+            localStream = stream;
             setupLocalMedia(localStream, type === 'video');
 
             showCallOverlay();
@@ -518,10 +556,24 @@
         activeCallPeer = incomingCaller;
 
         try {
-            localStream = await navigator.mediaDevices.getUserMedia({
-                audio: true,
-                video: useVideo ? { width: { ideal: 1280 }, height: { ideal: 720 } } : false
-            });
+            // Solicitar permisos combinados de micrófono y cámara desde el inicio
+            let stream = null;
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    audio: true,
+                    video: { width: { ideal: 1280 }, height: { ideal: 720 } }
+                });
+                // Si la llamada fue aceptada en modo solo audio, mantener la cámara apagada al inicio
+                if (!useVideo) {
+                    const vt = stream.getVideoTracks()[0];
+                    if (vt) vt.enabled = false;
+                }
+            } catch (camErr) {
+                console.warn('[WebRTC] Cámara no disponible o denegada, solicitando solo audio:', camErr);
+                stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            }
+
+            localStream = stream;
             setupLocalMedia(localStream, useVideo);
             showCallOverlay();
 
