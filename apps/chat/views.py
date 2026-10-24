@@ -105,7 +105,7 @@ def dm_view(request, conversation_id):
     channels = workspace.channels.all() if workspace else []
 
     direct_conversations = request.user.direct_conversations.all()
-    messages = conversation.messages.select_related('author').order_by('created_at')[:50]
+    messages = conversation.messages.select_related('author').prefetch_related('attachments').order_by('created_at')[:50]
     
     active_secrets = conversation.ephemeral_secrets.filter(
         is_destroyed=False,

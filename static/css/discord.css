@@ -50,13 +50,18 @@ html, body {
     -webkit-font-smoothing: antialiased;
 }
 
-/* Contenedor Principal en Grid de 4 Columnas */
+/* Contenedor Principal en Grid con soporte para Perfil Drawer de 340px */
 .app-container {
     display: grid;
-    grid-template-columns: 72px 240px 1fr 240px;
+    grid-template-columns: 72px 240px 1fr 340px;
     height: 100vh;
     width: 100vw;
     overflow: hidden;
+    transition: grid-template-columns 0.2s ease;
+}
+
+.app-container.profile-drawer-hidden {
+    grid-template-columns: 72px 240px 1fr 0px;
 }
 
 /* Scrollbar Personalizado Estilo Discord */
@@ -1384,6 +1389,682 @@ html, body {
     border-radius: 8px;
     font-size: 13px;
     color: #ffffff;
+}
+
+/* ==========================================================================
+   5. COMPONENTES ESTILO DISCORD / STEAM CHAT AUTÉNTICO
+   ========================================================================== */
+
+/* Buscador superior de la barra lateral */
+.sidebar-search-container {
+    padding: 10px 10px 8px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.2);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.sidebar-search-btn {
+    width: 100%;
+    height: 30px;
+    background-color: #1e1f22;
+    border: none;
+    border-radius: 4px;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 500;
+    text-align: left;
+    padding: 0 10px;
+    cursor: pointer;
+    transition: background-color 0.15s, color 0.15s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sidebar-search-btn:hover {
+    background-color: #232428;
+    color: var(--text-secondary);
+}
+
+/* Accesos rápidos superiores (Amigos, Nitro, Tienda, Misiones) */
+.quick-nav-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: 8px;
+}
+
+.quick-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    border-radius: 4px;
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 14.5px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+    user-select: none;
+}
+
+.quick-nav-item:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-secondary);
+}
+
+.quick-nav-item.active {
+    background-color: var(--bg-active);
+    color: #ffffff;
+    font-weight: 600;
+}
+
+.quick-nav-icon {
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+}
+
+.quick-nav-badge {
+    margin-left: auto;
+    background-color: var(--accent-blurple);
+    color: #ffffff;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 8px;
+    letter-spacing: 0.04em;
+}
+
+.sidebar-divider {
+    height: 1px;
+    background-color: rgba(255, 255, 255, 0.06);
+    margin: 6px 8px;
+}
+
+/* Elementos ricos de la lista de DMs */
+.dm-list-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 10px;
+    border-radius: 4px;
+    color: var(--text-muted);
+    text-decoration: none;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+    user-select: none;
+    margin-bottom: 2px;
+}
+
+.dm-list-item:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-secondary);
+}
+
+.dm-list-item.active {
+    background-color: #35373c;
+    color: #ffffff;
+}
+
+.dm-avatar-wrapper {
+    position: relative;
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+}
+
+.dm-avatar-img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.dm-avatar-placeholder {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background-color: var(--accent-blurple);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 14px;
+}
+
+.dm-status-indicator {
+    position: absolute;
+    bottom: -1px;
+    right: -1px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 2px solid var(--bg-channels);
+}
+
+.dm-status-indicator.online {
+    background-color: var(--accent-success);
+}
+
+.dm-status-indicator.idle {
+    background-color: var(--accent-warning);
+}
+
+.dm-text-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.dm-display-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: inherit;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dm-subtitle {
+    font-size: 11.5px;
+    color: #80848e;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 1px;
+}
+
+.dm-list-item.active .dm-subtitle {
+    color: #b5bac1;
+}
+
+.user-controls-icons {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+/* Header del chat */
+.header-avatar-circle {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background-color: var(--accent-blurple);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.btn-icon-header {
+    background: transparent;
+    border: none;
+    color: #b5bac1;
+    font-size: 16px;
+    padding: 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-icon-header:hover {
+    color: #ffffff;
+    background-color: var(--bg-hover);
+}
+
+.btn-icon-header.active {
+    color: #ffffff;
+}
+
+.header-search-bar {
+    position: relative;
+    display: flex;
+    align-items: center;
+    background-color: #1e1f22;
+    border-radius: 4px;
+    padding: 0 8px;
+    height: 26px;
+    width: 150px;
+    transition: width 0.2s ease;
+}
+
+.header-search-bar:focus-within {
+    width: 220px;
+}
+
+.header-search-bar input {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text-primary);
+    font-size: 12px;
+    width: 100%;
+}
+
+.header-search-bar input::placeholder {
+    color: var(--text-muted);
+}
+
+.header-search-bar .search-icon {
+    font-size: 12px;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+/* Separador de fecha de chat estilo Discord */
+.chat-date-divider {
+    display: flex;
+    align-items: center;
+    margin: 20px 0 10px;
+    user-select: none;
+}
+
+.chat-date-line {
+    flex: 1;
+    height: 1px;
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+.chat-date-badge {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--text-muted);
+    padding: 0 14px;
+    text-transform: capitalize;
+}
+
+/* Tarjeta de Archivo Adjunto Estilo Discord (message.txt) */
+.file-attachment-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background-color: #2b2d31;
+    border: 1px solid #1e1f22;
+    border-radius: 8px;
+    padding: 12px 14px;
+    max-width: 440px;
+    margin-top: 6px;
+}
+
+.file-card-icon {
+    font-size: 26px;
+    width: 36px;
+    height: 36px;
+    background-color: #1e1f22;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.file-card-details {
+    flex: 1;
+    min-width: 0;
+}
+
+.file-card-name {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-link);
+    text-decoration: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.file-card-name:hover {
+    text-decoration: underline;
+}
+
+.file-card-size {
+    display: block;
+    font-size: 11.5px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.file-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.file-card-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 14px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.15s, color 0.15s;
+    font-weight: 700;
+}
+
+.file-card-btn:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+    color: #ffffff;
+}
+
+/* Enlaces dentro del chat */
+.msg-content a {
+    color: var(--text-link);
+    text-decoration: none;
+}
+
+.msg-content a:hover {
+    text-decoration: underline;
+}
+
+/* Barra de Input Redondeada Estilo Discord / Steam */
+.chat-input-pill {
+    background-color: var(--bg-input);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    min-height: 44px;
+    gap: 10px;
+    position: relative;
+}
+
+.chat-attach-circle-btn {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background-color: #4e5058;
+    color: #ffffff;
+    border: none;
+    font-size: 18px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background-color 0.15s, transform 0.1s;
+    line-height: 1;
+}
+
+.chat-attach-circle-btn:hover {
+    background-color: #6d6f78;
+    transform: scale(1.05);
+}
+
+.chat-input-field {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 14.5px;
+    resize: none;
+    padding: 10px 0;
+    max-height: 200px;
+    min-height: 24px;
+    user-select: text;
+}
+
+.chat-input-field::placeholder {
+    color: #6d6f78;
+}
+
+.chat-inline-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.chat-action-btn-inline {
+    background: transparent;
+    border: none;
+    font-size: 19px;
+    padding: 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    color: #b5bac1;
+    transition: transform 0.12s, filter 0.12s;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.chat-action-btn-inline:hover {
+    transform: scale(1.18);
+    filter: brightness(1.2);
+}
+
+/* Menú contextual flotante del botón circular + */
+.chat-attach-menu {
+    display: none;
+    position: absolute;
+    bottom: 54px;
+    left: 16px;
+    background-color: #232428;
+    border: 1px solid #1f2023;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    padding: 6px;
+    min-width: 210px;
+    z-index: 100;
+}
+
+.chat-attach-menu.open {
+    display: block;
+}
+
+.attach-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 4px;
+    color: var(--text-secondary);
+    font-size: 13.5px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+}
+
+.attach-menu-item:hover {
+    background-color: var(--accent-blurple);
+    color: #ffffff;
+}
+
+/* ==========================================================================
+   6. COLUMNA DERECHA: DRAWER DE PERFIL DE USUARIO (ALEXIS IRALA)
+   ========================================================================== */
+.profile-drawer-column {
+    background-color: #232428;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    border-left: 1px solid #1f2023;
+    overflow-y: auto;
+    user-select: none;
+    z-index: 15;
+}
+
+.profile-drawer-banner {
+    height: 120px;
+    background-color: #111214;
+    position: relative;
+    flex-shrink: 0;
+}
+
+.profile-drawer-top-actions {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    display: flex;
+    gap: 8px;
+}
+
+.profile-mini-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background-color: rgba(0, 0, 0, 0.6);
+    border: none;
+    color: #ffffff;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+}
+
+.profile-mini-btn:hover {
+    background-color: rgba(0, 0, 0, 0.85);
+    transform: scale(1.08);
+}
+
+.profile-drawer-avatar-wrapper {
+    position: relative;
+    margin-top: -46px;
+    padding-left: 20px;
+    flex-shrink: 0;
+}
+
+.profile-drawer-avatar-circle {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background-color: var(--accent-blurple);
+    border: 6px solid #232428;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    font-weight: 700;
+    color: #ffffff;
+    position: relative;
+    box-sizing: content-box;
+}
+
+.profile-drawer-status-moon {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background-color: var(--accent-warning);
+    border: 4px solid #232428;
+}
+
+.profile-drawer-card-box {
+    margin: 16px;
+    background-color: #111214;
+    border-radius: 8px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+}
+
+.profile-drawer-name {
+    font-size: 20px;
+    font-weight: 700;
+    color: #ffffff;
+    letter-spacing: -0.01em;
+}
+
+.profile-drawer-handle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 2px;
+}
+
+.profile-drawer-username {
+    font-size: 13.5px;
+    color: #dbdee1;
+    font-weight: 500;
+}
+
+.profile-drawer-badges {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.profile-badge-pill {
+    background-color: #2b2d31;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 13px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.profile-drawer-mutuals {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin: 12px 0 8px;
+    line-height: 1.4;
+}
+
+.profile-drawer-sep {
+    height: 1px;
+    background-color: rgba(255, 255, 255, 0.08);
+    margin: 12px 0;
+}
+
+.profile-drawer-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #b5bac1;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 4px;
+}
+
+.profile-drawer-val {
+    font-size: 13.5px;
+    color: var(--text-secondary);
+}
+
+.profile-drawer-text {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+.btn-profile-drawer-full {
+    width: 100%;
+    background-color: #383a40;
+    color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    padding: 10px;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.15s;
+    text-align: center;
+}
+
+.btn-profile-drawer-full:hover {
+    background-color: #474a52;
 }
 
 

@@ -130,8 +130,25 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </div>`;
             }
         } else if (msg.attachment_url) {
-            innerContent = `<div class="msg-content">${escapeHtml(msg.content)}</div>
-                            <img src="${msg.attachment_url}" class="attachment-preview" alt="Adjunto">`;
+            const isImg = msg.is_image || /\.(png|jpe?g|gif|webp|svg)$/i.test(msg.attachment_url);
+            if (isImg) {
+                innerContent = `${msg.content ? `<div class="msg-content">${escapeHtml(msg.content)}</div>` : ''}
+                                <img src="${msg.attachment_url}" class="attachment-preview" alt="Adjunto">`;
+            } else {
+                const fname = msg.filename || msg.attachment_url.split('/').pop();
+                innerContent = `
+                    <div class="file-attachment-card">
+                        <div class="file-card-icon">📄</div>
+                        <div class="file-card-details">
+                            <a href="${msg.attachment_url}" class="file-card-name" target="_blank">${escapeHtml(fname)}</a>
+                            <span class="file-card-size">Archivo adjunto</span>
+                        </div>
+                        <div class="file-card-actions">
+                            <a href="${msg.attachment_url}" target="_blank" class="file-card-btn" title="Ver código">&lt; &gt;</a>
+                            <a href="${msg.attachment_url}" download class="file-card-btn" title="Descargar">⬇️</a>
+                        </div>
+                    </div>`;
+            }
         } else if (msg.is_code && msg.formatted_code_html) {
             innerContent = `
                 <div class="code-container">
@@ -144,7 +161,8 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (msg.formatted_code_html) {
             innerContent = msg.formatted_code_html;
         } else {
-            innerContent = `<div class="msg-content">${escapeHtml(msg.content)}</div>`;
+            const linked = escapeHtml(msg.content).replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+            innerContent = `<div class="msg-content">${linked}</div>`;
         }
 
         const avatarHtml = msg.avatar_url 
@@ -763,5 +781,100 @@ document.addEventListener('DOMContentLoaded', () => {
             alert('Error al comunicar con el servidor.');
         }
     };
+
+    // =========================================================================
+    // Manejadores Interactivos Estilo Discord / Steam
+    // =========================================================================
+
+    const attachMenu = document.getElementById('chatAttachMenu');
+
+    window.toggleAttachMenu = function(e) {
+        if (e) e.stopPropagation();
+        if (attachMenu) {
+            attachMenu.classList.toggle('open');
+        }
+    };
+
+    window.closeAttachMenu = function() {
+        if (attachMenu) {
+            attachMenu.classList.remove('open');
+        }
+    };
+
+    window.openTelegramTab = function(tabName, e) {
+        if (e) e.stopPropagation();
+        if (typeof openTelegramPicker === 'function') {
+            openTelegramPicker();
+        }
+        if (typeof switchTgTab === 'function') {
+            switchTgTab(tabName);
+        }
+    };
+
+    // Alternar visibilidad de la columna derecha de perfil / miembros
+    window.toggleProfileDrawer = function() {
+        const appContainer = document.querySelector('.app-container');
+        const btnToggle = document.getElementById('btnToggleProfileDrawer');
+        if (appContainer) {
+            appContainer.classList.toggle('profile-drawer-hidden');
+            if (btnToggle) {
+                btnToggle.classList.toggle('active', !appContainer.classList.contains('profile-drawer-hidden'));
+            }
+        }
+    };
+
+    // Buscador en tiempo real de mensajes del chat
+    window.searchInChat = function(query) {
+        const q = (query || '').toLowerCase().trim();
+        const msgCards = document.querySelectorAll('#messagesContainer .message-card');
+        msgCards.forEach(card => {
+            const text = (card.textContent || '').toLowerCase();
+            if (!q || text.includes(q)) {
+                card.style.display = 'flex';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    };
+
+    // Controles de audio de usuario (Mute / Deafen)
+    window.toggleMuteAudio = function(btn) {
+        btn.classList.toggle('active');
+        if (btn.classList.contains('active')) {
+            btn.textContent = '🔇';
+            btn.style.color = 'var(--accent-danger)';
+            btn.title = 'Micrófono silenciado';
+        } else {
+            btn.textContent = '🎙️';
+            btn.style.color = '';
+            btn.title = 'Silenciar micrófono';
+        }
+    };
+
+    window.toggleDeafenAudio = function(btn) {
+        btn.classList.toggle('active');
+        if (btn.classList.contains('active')) {
+            btn.textContent = '🔇';
+            btn.style.color = 'var(--accent-danger)';
+            btn.title = 'Audio ensordecido';
+        } else {
+            btn.textContent = '🎧';
+            btn.style.color = '';
+            btn.title = 'Ensordecer audio';
+        }
+    };
+
+    // Auto-expandir altura del input de texto
+    if (messageInput) {
+        messageInput.addEventListener('input', () => {
+            messageInput.style.height = 'auto';
+            messageInput.style.height = Math.min(messageInput.scrollHeight, 180) + 'px';
+        });
+    }
+
+    // Cerrar menú de adjuntos al hacer clic en cualquier lugar del documento
+    document.addEventListener('click', () => {
+        closeAttachMenu();
+    });
 });
 

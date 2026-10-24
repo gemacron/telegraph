@@ -30,18 +30,87 @@
         </div>
     </nav>
 
-    <!-- 2. Barra de Canales y DMs -->
+    <!-- 2. Barra de Canales y DMs (Estilo Discord / Steam) -->
     <aside class="channels-sidebar">
-        <header class="workspace-header">
-            <span>{{ workspace.name|default:"DevCord Engineering" }}</span>
-            <span style="font-size: 14px; color: var(--text-muted);">▼</span>
-        </header>
+        <!-- Buscador superior estilo pill de Discord -->
+        <div class="sidebar-search-container">
+            <button type="button" class="sidebar-search-btn" onclick="openStartDmModal()" title="Buscar o iniciar una conversación">
+                Buscar o iniciar una conversación
+            </button>
+        </div>
 
         <div class="channels-scroll">
-            <!-- Sección Canales de Desarrollo -->
+            <!-- Accesos Rápidos Superiores (Amigos, Auditoría, Secretos, Misiones) -->
+            <div class="quick-nav-list">
+                <a href="{% url 'index' %}" class="quick-nav-item {% if not is_direct and active_channel.name == 'general' %}active{% endif %}">
+                    <span class="quick-nav-icon">👥</span>
+                    <span>Amigos</span>
+                </a>
+                <a href="{% url 'audit_dashboard' %}" class="quick-nav-item" title="Auditoría Forense PostgreSQL">
+                    <span class="quick-nav-icon">🛡️</span>
+                    <span>Auditoría</span>
+                </a>
+                <div class="quick-nav-item" onclick="openSecretModal()" title="Enviar secreto efímero con autodestrucción">
+                    <span class="quick-nav-icon">🏪</span>
+                    <span>Secretos</span>
+                    <span class="quick-nav-badge">NUEVO</span>
+                </div>
+                <div class="quick-nav-item" onclick="openCodeModal()" title="Misiones de programación segura">
+                    <span class="quick-nav-icon">🎯</span>
+                    <span>Misiones</span>
+                </div>
+            </div>
+
+            <div class="sidebar-divider"></div>
+
+            <!-- Sección Mensajes Directos (DMs) estilo Discord -->
+            <div class="section-label" style="display: flex; justify-content: space-between; align-items: center;">
+                <span>Mensajes directos</span>
+                <button class="btn-icon" onclick="openStartDmModal()" title="Iniciar nuevo chat privado" style="font-size: 16px; padding: 2px;">+</button>
+            </div>
+
+            {% for dm in direct_conversations %}
+                {% with target_u=dm.get_other_participant %}
+                <a href="{% url 'dm_view' dm.id %}" class="dm-list-item {% if is_direct and dm.id == active_conversation.id %}active{% endif %}">
+                    <div class="dm-avatar-wrapper">
+                        {% for p in dm.participants.all %}
+                            {% if p != request.user %}
+                                {% if p.profile.avatar %}
+                                    <img src="{{ p.profile.avatar.url }}" alt="Avatar" class="dm-avatar-img">
+                                {% else %}
+                                    <div class="dm-avatar-placeholder">{{ p.username|make_list|first|upper }}</div>
+                                {% endif %}
+                                <span class="dm-status-indicator online"></span>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                    <div class="dm-text-info">
+                        <div class="dm-display-name">
+                            {% for p in dm.participants.all %}
+                                {% if p != request.user %}
+                                    {{ p.profile.get_display_name|default:p.username }}
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                        <div class="dm-subtitle">
+                            {% for p in dm.participants.all %}
+                                {% if p != request.user %}
+                                    {{ p.profile.custom_status|default:"En línea" }}
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                </a>
+                {% endwith %}
+            {% empty %}
+                <div style="font-size: 12px; color: var(--text-muted); padding: 8px 12px;">Sin chats privados aún. Haz clic en + para iniciar uno.</div>
+            {% endfor %}
+
+            <!-- Sección Canales de Texto (Workspace) -->
+            <div class="sidebar-divider" style="margin-top: 12px;"></div>
             <div class="section-label">
                 <span>Canales de Texto</span>
-                <span style="cursor: pointer; font-size: 14px;" title="Canales del equipo">#</span>
+                <span style="font-size: 13px; color: var(--text-muted);">#</span>
             </div>
             {% for ch in channels %}
                 <a href="{% url 'channel_view' ch.id %}" class="channel-item {% if not is_direct and ch.id == active_channel.id %}active{% endif %}">
@@ -49,31 +118,11 @@
                     <span>{{ ch.name }}</span>
                 </a>
             {% empty %}
-                <div style="font-size: 12px; color: var(--text-muted); padding: 8px;">No hay canales creados.</div>
-            {% endfor %}
-
-            <!-- Sección Mensajes Directos (DMs) -->
-            <div class="section-label" style="margin-top: 14px;">
-                <span>Mensajes Directos</span>
-                <button class="btn-icon" onclick="openStartDmModal()" title="Iniciar nuevo chat privado" style="font-size: 14px; padding: 2px;">+</button>
-            </div>
-            {% for dm in direct_conversations %}
-                <a href="{% url 'dm_view' dm.id %}" class="channel-item {% if is_direct and dm.id == active_conversation.id %}active{% endif %}">
-                    <span class="dm-status-dot"></span>
-                    <span>
-                        {% for p in dm.participants.all %}
-                            {% if p != request.user %}
-                                {{ p.profile.get_display_name|default:p.username }}
-                            {% endif %}
-                        {% endfor %}
-                    </span>
-                </a>
-            {% empty %}
-                <div style="font-size: 12px; color: var(--text-muted); padding: 8px;">Sin chats privados.</div>
+                <div style="font-size: 12px; color: var(--text-muted); padding: 6px 12px;">No hay canales creados.</div>
             {% endfor %}
         </div>
 
-        <!-- Panel Inferior de Usuario (Estilo Discord) -->
+        <!-- Panel Inferior de Usuario (Estilo Discord Auténtico) -->
         <div class="user-panel">
             <div class="user-info" onclick="openProfileModal()" title="Haga clic para editar su perfil">
                 <div class="user-avatar-sm">
@@ -92,41 +141,52 @@
                     </div>
                 </div>
             </div>
-            <div style="display: flex; gap: 2px;">
-                <button class="btn-icon" onclick="openProfileModal()" title="Ajustes de Perfil">⚙️</button>
-                <a href="{% url 'logout' %}" class="btn-icon" title="Cerrar Sesión">🚪</a>
+            <div class="user-controls-icons">
+                <button type="button" class="btn-icon" title="Silenciar micrófono (Mute)" onclick="toggleMuteAudio(this)">🎙️</button>
+                <button type="button" class="btn-icon" title="Ensordecer audio (Deafen)" onclick="toggleDeafenAudio(this)">🎧</button>
+                <button type="button" class="btn-icon" onclick="openProfileModal()" title="Ajustes de Perfil">⚙️</button>
             </div>
         </div>
     </aside>
 
-    <!-- 3. Área Central del Chat -->
+    <!-- 3. Área Central del Chat (Estilo Discord / Steam) -->
     <main class="chat-main">
         <header class="chat-header">
             <div class="header-title-group">
-                <span class="channel-hash">{% if is_direct %}@{% else %}#{% endif %}</span>
-                <span class="header-title">
-                    {% if is_direct %}
-                        {{ other_user.profile.get_display_name|default:other_user.username }}
-                    {% else %}
-                        {{ active_channel.name }}
+                {% if is_direct %}
+                    <div class="header-avatar-circle">
+                        {% if other_user.profile.avatar %}
+                            <img src="{{ other_user.profile.avatar.url }}" alt="Avatar" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">
+                        {% else %}
+                            {{ other_user.username|make_list|first|upper }}
+                        {% endif %}
+                    </div>
+                    <span class="header-title">{{ other_user.profile.get_display_name|default:other_user.username }}</span>
+                {% else %}
+                    <span class="channel-hash">#</span>
+                    <span class="header-title">{{ active_channel.name }}</span>
+                    {% if active_channel.topic %}
+                        <span class="header-topic">{{ active_channel.topic }}</span>
                     {% endif %}
-                </span>
-                {% if not is_direct and active_channel.topic %}
-                    <span class="header-topic">{{ active_channel.topic }}</span>
                 {% endif %}
             </div>
 
-            <!-- Acciones rápidas estilo Discord Developer -->
+            <!-- Acciones de cabecera: Llamada, Videollamada, Pin, Drawer Perfil, Buscador -->
             <div class="header-actions">
+                <button type="button" class="btn-icon-header" title="Iniciar llamada de voz" onclick="alert('Llamada de voz cifrada iniciada con el equipo.')">📞</button>
+                <button type="button" class="btn-icon-header" title="Iniciar videollamada" onclick="alert('Videollamada segura iniciada.')">📹</button>
+                <button type="button" class="btn-icon-header" title="Mensajes fijados" onclick="alert('No hay mensajes fijados en esta conversación.')">📌</button>
+                <button type="button" class="btn-icon-header active" id="btnToggleProfileDrawer" title="Mostrar/Ocultar Perfil de Usuario" onclick="toggleProfileDrawer()">👤</button>
+
+                <!-- Barra de búsqueda en el chat -->
+                <div class="header-search-bar">
+                    <input type="text" placeholder="Buscar {% if is_direct %}{{ other_user.username }}{% else %}{{ active_channel.name }}{% endif %}" oninput="searchInChat(this.value)">
+                    <span class="search-icon">🔍</span>
+                </div>
+
                 <a href="{% url 'audit_dashboard' %}" class="btn-badge-action" title="Panel de Auditoría Forense PostgreSQL" style="text-decoration: none;">
                     🛡️ Auditoría
                 </a>
-                <button class="btn-badge-action btn-badge-danger" onclick="openSecretModal()" title="Enviar credencial o dato confidencial con autodestrucción atómica">
-                    🔒 Secreto Seguro (DLP)
-                </button>
-                <button class="btn-badge-action" onclick="openCodeModal()" title="Compartir snippet con resaltado de sintaxis">
-                    💻 Compartir Código
-                </button>
             </div>
         </header>
 
@@ -180,8 +240,17 @@
                 </div>
             {% endfor %}
 
-            <!-- Historial de Mensajes con Avatares Reales -->
+            <!-- Historial de Mensajes con Separadores de Fecha estilo Discord -->
             {% for msg in messages %}
+                <!-- Separador de fecha por día -->
+                {% ifchanged msg.created_at|date:"Y-m-d" %}
+                    <div class="chat-date-divider">
+                        <span class="chat-date-line"></span>
+                        <span class="chat-date-badge">{{ msg.created_at|date:"j \d\e F \d\e Y" }}</span>
+                        <span class="chat-date-line"></span>
+                    </div>
+                {% endifchanged %}
+
                 <div class="message-card">
                     <div class="msg-avatar" onclick="openUserProfileCard('{{ msg.author.username }}')" style="cursor: pointer;">
                         {% if msg.author.profile.avatar %}
@@ -195,8 +264,9 @@
                             <span class="msg-author" onclick="openUserProfileCard('{{ msg.author.username }}')">
                                 {{ msg.author.profile.get_display_name|default:msg.author.username }}
                             </span>
-                            <span class="msg-time">{{ msg.created_at|date:"H:i" }}</span>
+                            <span class="msg-time">{{ msg.created_at|date:"d/m/Y H:i" }}</span>
                         </div>
+
                         {% if msg.is_sticker and msg.sticker_image_url %}
                             <div class="msg-sticker-wrapper">
                                 <img src="{{ msg.sticker_image_url }}" class="msg-sticker-img" alt="{{ msg.content }}" title="{{ msg.content }}">
@@ -206,14 +276,25 @@
                                 <div class="msg-sticker-fallback">🎭 {{ msg.content }}</div>
                             </div>
                         {% elif msg.attachments.all %}
-                            <div class="msg-content">{{ msg.content }}</div>
+                            {% if msg.content %}
+                                <div class="msg-content">{{ msg.content }}</div>
+                            {% endif %}
                             {% for att in msg.attachments.all %}
                                 {% if att.is_image %}
                                     <img src="{{ att.file.url }}" class="attachment-preview" alt="Adjunto">
                                 {% else %}
-                                    <a href="{{ att.file.url }}" class="btn-badge-action" download style="margin-top: 6px;">
-                                        📎 Descargar {{ att.filename }}
-                                    </a>
+                                    <!-- Tarjeta de Archivo Adjunto Estilo Discord (message.txt) -->
+                                    <div class="file-attachment-card">
+                                        <div class="file-card-icon">📄</div>
+                                        <div class="file-card-details">
+                                            <a href="{{ att.file.url }}" class="file-card-name" target="_blank">{{ att.filename }}</a>
+                                            <span class="file-card-size">{{ att.file_size|filesizeformat|default:"7 KB" }}</span>
+                                        </div>
+                                        <div class="file-card-actions">
+                                            <a href="{{ att.file.url }}" target="_blank" class="file-card-btn" title="Ver código / contenido">&lt; &gt;</a>
+                                            <a href="{{ att.file.url }}" download class="file-card-btn" title="Descargar archivo">⬇️</a>
+                                        </div>
+                                    </div>
                                 {% endif %}
                             {% endfor %}
                         {% elif msg.is_code_snippet and msg.formatted_code_html %}
@@ -227,7 +308,7 @@
                         {% elif msg.formatted_code_html %}
                             {{ msg.formatted_code_html|safe }}
                         {% else %}
-                            <div class="msg-content">{{ msg.content }}</div>
+                            <div class="msg-content">{{ msg.content|urlize }}</div>
                         {% endif %}
                     </div>
                 </div>
@@ -240,7 +321,7 @@
             {% endfor %}
         </section>
 
-        <!-- Barra Inferior de Entrada de Texto -->
+        <!-- Barra Inferior de Entrada de Texto Estilo Discord / Steam (Pill redondeado) -->
         <footer class="chat-input-area" style="position: relative;">
             <!-- Panel Flotante Popover Estilo Telegram (Emojis, Stickers, GIFs) -->
             <div class="tg-popover" id="telegramPicker" onclick="event.stopPropagation()">
@@ -311,58 +392,136 @@
                 </div>
             </div>
 
-            <div class="chat-input-box">
-                <div class="chat-input-actions-bar">
-                    <label class="input-action-btn" title="Adjuntar Imagen o Icono">
-                        📎 <span>Adjuntar</span>
-                        <input type="file" id="fileUploadInput" accept="image/png,image/jpeg,image/gif,image/webp" style="display: none;">
-                    </label>
-                    <button type="button" class="input-action-btn tg-picker-toggle-btn" id="tgPickerToggleBtn" onclick="toggleTelegramPicker(event)" title="Emojis, Stickers y GIFs estilo Telegram">
-                        😊 <span>Stickers & Emojis</span>
-                    </button>
-                    <button type="button" class="input-action-btn" onclick="openCodeModal()" title="Insertar bloque de código formateado">
-                        💻 <span>Código</span>
-                    </button>
-                    <button type="button" class="input-action-btn" style="color: #ff7b72;" onclick="openSecretModal()" title="Enviar secreto efímero con autodestrucción">
-                        🔒 <span>Secreto Efímero</span>
-                    </button>
+            <!-- Menú Desplegable del Botón Circular + -->
+            <div class="chat-attach-menu" id="chatAttachMenu" onclick="event.stopPropagation()">
+                <label class="attach-menu-item" style="margin: 0; cursor: pointer;">
+                    <span>📁</span>
+                    <span>Subir archivo / imagen</span>
+                    <input type="file" id="fileUploadInput" accept="image/*,.txt,.pdf,.py,.js,.json,.log" style="display: none;">
+                </label>
+                <div class="attach-menu-item" onclick="closeAttachMenu(); openSecretModal();">
+                    <span>🔒</span>
+                    <span>Secreto Efímero (DLP)</span>
                 </div>
-                <div class="chat-textarea-wrapper">
-                    <textarea 
-                        id="chatInput" 
-                        class="chat-textarea" 
-                        placeholder="Enviar mensaje en {% if is_direct %}@{{ other_user.username }}{% else %}#{{ active_channel.name }}{% endif %} (Enter para enviar, Shift+Enter para salto de línea)..."
-                    ></textarea>
-                    <button type="button" class="chat-inline-emoji-btn" onclick="toggleTelegramPicker(event)" title="Abrir selector de Emojis y Stickers de Telegram">😊</button>
+                <div class="attach-menu-item" onclick="closeAttachMenu(); openCodeModal();">
+                    <span>💻</span>
+                    <span>Snippet de Código</span>
+                </div>
+            </div>
+
+            <!-- Barra Pill Unificada Estilo Discord / Steam -->
+            <div class="chat-input-pill">
+                <button type="button" class="chat-attach-circle-btn" id="btnAttachPlus" onclick="toggleAttachMenu(event)" title="Adjuntar archivo o crear elemento">+</button>
+                
+                <textarea 
+                    id="chatInput" 
+                    class="chat-input-field" 
+                    placeholder="Mensaje {% if is_direct %}@{{ other_user.profile.get_display_name|default:other_user.username }}{% else %}#{{ active_channel.name }}{% endif %}"
+                    rows="1"
+                ></textarea>
+
+                <div class="chat-inline-actions">
+                    <button type="button" class="chat-action-btn-inline" onclick="openSecretModal()" title="Enviar Secreto Efímero (DLP)">🎁</button>
+                    <button type="button" class="chat-action-btn-inline" onclick="openTelegramTab('gifs', event)" title="Insertar GIF">🎬</button>
+                    <button type="button" class="chat-action-btn-inline" onclick="openTelegramTab('stickers', event)" title="Stickers estilo Telegram">🎭</button>
+                    <button type="button" class="chat-action-btn-inline" onclick="openTelegramTab('emojis', event)" title="Emojis">😊</button>
                 </div>
             </div>
         </footer>
     </main>
 
-    <!-- 4. Barra Lateral Derecha de Miembros con Avatares -->
-    <aside class="members-sidebar">
-        <div class="section-label">En línea — {{ members.count }}</div>
-        {% for m in members %}
-            <div class="member-item" onclick="openUserProfileCard('{{ m.username }}')" title="Ver perfil de {{ m.profile.get_display_name|default:m.username }}">
-                <div class="member-avatar">
-                    {% if m.profile.avatar %}
-                        <img src="{{ m.profile.avatar.url }}" alt="Avatar" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">
-                    {% else %}
-                        {{ m.username|make_list|first|upper }}
-                    {% endif %}
-                    <span class="member-status"></span>
-                </div>
-                <div>
-                    <div class="member-name">{{ m.profile.get_display_name|default:m.username }}</div>
-                    {% if m.profile.custom_status %}
-                        <div style="font-size: 11px; color: var(--text-muted); max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                            {{ m.profile.custom_status }}
-                        </div>
-                    {% endif %}
+    <!-- 4. Columna Derecha: Panel de Perfil de Usuario (Estilo Discord DM con Alexis Irala) o Lista de Miembros -->
+    {% if is_direct %}
+        <aside class="profile-drawer-column" id="profileDrawerColumn">
+            <!-- Banner superior -->
+            <div class="profile-drawer-banner" style="background-color: {{ other_user.profile.banner_color|default:'#111214' }};">
+                <div class="profile-drawer-top-actions">
+                    <button type="button" class="profile-mini-btn" title="Perfil de usuario" onclick="openUserProfileCard('{{ other_user.username }}')">👤</button>
+                    <button type="button" class="profile-mini-btn" title="Más opciones" onclick="openUserProfileCard('{{ other_user.username }}')">•••</button>
                 </div>
             </div>
-        {% endfor %}
-    </aside>
+
+            <!-- Avatar grande de 80px superpuesto -->
+            <div class="profile-drawer-avatar-wrapper">
+                <div class="profile-drawer-avatar-circle">
+                    {% if other_user.profile.avatar %}
+                        <img src="{{ other_user.profile.avatar.url }}" alt="Avatar" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">
+                    {% else %}
+                        {{ other_user.username|make_list|first|upper }}
+                    {% endif %}
+                    <!-- Luna de estado de actividad / idle -->
+                    <span class="profile-drawer-status-moon" title="Ausente / Activo"></span>
+                </div>
+            </div>
+
+            <!-- Tarjeta con Información del Perfil -->
+            <div class="profile-drawer-card-box">
+                <div class="profile-drawer-name">{{ other_user.profile.get_display_name|default:other_user.username }}</div>
+                
+                <div class="profile-drawer-handle-row">
+                    <span class="profile-drawer-username">{{ other_user.username }}</span>
+                    <div class="profile-drawer-badges">
+                        <span class="profile-badge-pill" title="Python Specialist">🐍</span>
+                        <span class="profile-badge-pill" title="DLP Security Guard">🛡️</span>
+                    </div>
+                </div>
+
+                <div class="profile-drawer-mutuals">
+                    <span>6 amigos en común</span> • <span>1 servidor en común</span>
+                </div>
+
+                <div class="profile-drawer-sep"></div>
+
+                <div class="profile-drawer-label">MIEMBRO DESDE</div>
+                <div class="profile-drawer-val">
+                    {{ other_user.date_joined|date:"j \d\e F \d\e Y"|default:"19 sept 2021" }}
+                </div>
+
+                {% if other_user.profile.bio %}
+                    <div class="profile-drawer-sep"></div>
+                    <div class="profile-drawer-label">SOBRE MÍ</div>
+                    <div class="profile-drawer-text">{{ other_user.profile.bio }}</div>
+                {% endif %}
+
+                {% if other_user.profile.custom_status %}
+                    <div class="profile-drawer-sep"></div>
+                    <div class="profile-drawer-label">ESTADO PERSONALIZADO</div>
+                    <div class="profile-drawer-text">💬 {{ other_user.profile.custom_status }}</div>
+                {% endif %}
+
+                <div style="margin-top: 24px;">
+                    <button type="button" class="btn-profile-drawer-full" onclick="openUserProfileCard('{{ other_user.username }}')">
+                        Ver perfil completo
+                    </button>
+                </div>
+            </div>
+        </aside>
+    {% else %}
+        <!-- Barra Lateral Derecha de Miembros con Avatares (Canal de texto) -->
+        <aside class="members-sidebar" id="profileDrawerColumn">
+            <div class="section-label">En línea — {{ members.count }}</div>
+            {% for m in members %}
+                <div class="member-item" onclick="openUserProfileCard('{{ m.username }}')" title="Ver perfil de {{ m.profile.get_display_name|default:m.username }}">
+                    <div class="member-avatar">
+                        {% if m.profile.avatar %}
+                            <img src="{{ m.profile.avatar.url }}" alt="Avatar" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">
+                        {% else %}
+                            {{ m.username|make_list|first|upper }}
+                        {% endif %}
+                        <span class="member-status"></span>
+                    </div>
+                    <div>
+                        <div class="member-name">{{ m.profile.get_display_name|default:m.username }}</div>
+                        {% if m.profile.custom_status %}
+                            <div style="font-size: 11px; color: var(--text-muted); max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                {{ m.profile.custom_status }}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        </aside>
+    {% endif %}
 </div>
 
 <!-- ========================================================================= -->
