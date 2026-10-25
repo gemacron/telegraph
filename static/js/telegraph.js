@@ -906,6 +906,307 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('click', () => {
         closeAttachMenu();
     });
+
+    // ==========================================
+    // Gestión de Canales y Grupos Estilo WhatsApp
+    // ==========================================
+    const createChannelModal = document.getElementById('createChannelModal');
+    const manageChannelModal = document.getElementById('manageChannelModal');
+    let currentManagingChannelId = null;
+
+    window.openCreateChannelModal = async function() {
+        if (!createChannelModal) return;
+        createChannelModal.style.display = 'flex';
+        const errEl = document.getElementById('createChannelError');
+        if (errEl) errEl.style.display = 'none';
+
+        const nameInput = document.getElementById('newChannelName');
+        if (nameInput) {
+            nameInput.value = '';
+            nameInput.focus();
+        }
+        const topicInput = document.getElementById('newChannelTopic');
+        if (topicInput) topicInput.value = '';
+
+        const managerSelect = document.getElementById('newChannelManagerSelect');
+        const membersList = document.getElementById('newChannelMembersList');
+
+        try {
+            const res = await fetch('/api/workspace/users/');
+            if (res.ok) {
+                const data = await res.json();
+                if (managerSelect) {
+                    managerSelect.innerHTML = data.users.map(u => 
+                        `<option value="${u.id}" ${u.username === currentUser ? 'selected' : ''}>${u.display_name} (@${u.username})</option>`
+                    ).join('');
+                }
+                if (membersList) {
+                    membersList.innerHTML = data.users.map(u => `
+                        <label style="display: flex; align-items: center; gap: 8px; padding: 5px 0; cursor: pointer; color: #dbdee1; font-size: 13px;">
+                            <input type="checkbox" name="channel_member" value="${u.id}" ${u.username === currentUser ? 'checked disabled' : 'checked'} style="accent-color: #5865f2; width: 16px; height: 16px;">
+                            <span>${u.display_name}</span>
+                            <span style="color: var(--text-muted); font-size: 11.5px;">@${u.username}</span>
+                        </label>
+                    `).join('');
+                }
+            }
+        } catch (e) {
+            console.error('Error cargando usuarios del workspace:', e);
+        }
+    };
+
+    window.closeCreateChannelModal = function() {
+        if (createChannelModal) createChannelModal.style.display = 'none';
+    };
+
+    window.submitCreateChannel = async function() {
+        const nameInput = document.getElementById('newChannelName');
+        const topicInput = document.getElementById('newChannelTopic');
+        const managerSelect = document.getElementById('newChannelManagerSelect');
+        const errEl = document.getElementById('createChannelError');
+        const btn = document.getElementById('btnSubmitCreateChannel');
+
+        const name = nameInput ? nameInput.value.trim() : '';
+        const topic = topicInput ? topicInput.value.trim() : '';
+        const managerId = managerSelect ? managerSelect.value : null;
+
+        const memberCheckboxes = document.querySelectorAll('#newChannelMembersList input[type="checkbox"]:checked');
+        const memberIds = Array.from(memberCheckboxes).map(cb => cb.value);
+
+        if (!name) {
+            if (errEl) {
+                errEl.textContent = 'Ingresa un nombre para el canal.';
+                errEl.style.display = 'block';
+            }
+            return;
+        }
+
+        if (btn) btn.disabled = true;
+
+        try {
+            const res = await fetch('/api/channels/create/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken || document.querySelector('[name=csrfmiddlewaretoken]')?.value || '',
+                },
+                body: JSON.stringify({
+                    name: name,
+                    topic: topic,
+                    manager_id: managerId,
+                    member_ids: memberIds
+                })
+            });
+
+            const data = await res.json();
+            if (res.ok && data.status === 'success') {
+                window.location.href = data.redirect_url;
+            } else {
+                if (errEl) {
+                    errEl.textContent = data.message || 'Error al crear el canal.';
+                    errEl.style.display = 'block';
+                }
+                if (btn) btn.disabled = false;
+            }
+        } catch (e) {
+            if (errEl) {
+                errEl.textContent = 'Error de conexión con el servidor.';
+                errEl.style.display = 'block';
+            }
+            if (btn) btn.disabled = false;
+        }
+    };
+
+    window.openManageChannelModal = async function(channelId) {
+        if (!manageChannelModal) return;
+        currentManagingChannelId = channelId;
+        manageChannelModal.style.display = 'flex';
+        await loadManageChannelData(channelId);
+    };
+
+    window.closeManageChannelModal = function() {
+        if (manageChannelModal) manageChannelModal.style.display = 'none';
+        currentManagingChannelId = null;
+    };
+
+    async function loadManageChannelData(channelId) {
+        try {
+            const res = await fetch(`/api/channels/${channelId}/manage/`);
+            if (res.ok) {
+                const data = await res.json();
+                document.getElementById('manageChannelModalTitle').textContent = `👥 Administrar Grupo: #${data.channel_name}`;
+                document.getElementById('manageChannelModalSubtitle').textContent = data.is_general ? 'Canal General (Todos los usuarios)' : 'Canal Privado con Control de Encargados';
+                document.getElementById('manageChannelMembersCount').textContent = `Participantes (${data.members.length})`;
+                document.getElementById('manageChannelTopicInput').value = data.topic || '';
+
+                const dangerZone = document.getElementById('manageChannelDangerZone');
+                if (dangerZone) dangerZone.style.display = data.is_general ? 'none' : 'block';
+
+                const membersList = document.getElementById('manageChannelMembersList');
+                if (membersList) {
+                    membersList.innerHTML = data.members.map(m => `
+                        <div style="display: flex; align-items: center; justify-content: space-between; background: #1e1f22; padding: 8px 12px; border-radius: 6px; border: 1px solid #383a40;">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <div style="width: 32px; height: 32px; border-radius: 50%; background: #5865f2; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #fff; font-size: 13px; overflow: hidden;">
+                                    ${m.avatar_url ? `<img src="${m.avatar_url}" style="width:100%;height:100%;object-fit:cover;">` : m.username.charAt(0).toUpperCase()}
+                                </div>
+                                <div>
+                                    <div style="font-size: 13.5px; font-weight: 600; color: #f2f3f5; display: flex; align-items: center; gap: 6px;">
+                                        <span>${m.display_name}</span>
+                                        ${m.is_manager ? `<span style="background: rgba(240,178,50,0.2); border: 1px solid #f0b232; color: #f0b232; font-size: 10.5px; padding: 1px 5px; border-radius: 3px;">👑 Encargado</span>` : ''}
+                                    </div>
+                                    <div style="font-size: 11.5px; color: var(--text-muted);">@${m.username}</div>
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 6px; align-items: center;">
+                                ${!data.is_general ? `
+                                    <button type="button" class="btn-secondary" style="font-size: 11px; padding: 4px 8px;" onclick="submitChannelToggleManager(${m.id})">
+                                        ${m.is_manager ? 'Degradar' : '👑 Hacer Encargado'}
+                                    </button>
+                                    ${!m.is_creator ? `
+                                        <button type="button" class="btn-danger" style="font-size: 11px; padding: 4px 8px; background: rgba(242,63,67,0.15); border: 1px solid #f23f43; color: #ff7b72; border-radius: 4px; cursor: pointer;" onclick="submitChannelRemoveMember(${m.id}, '${m.username}')">
+                                            ✕ Quitar
+                                        </button>
+                                    ` : ''}
+                                ` : ''}
+                            </div>
+                        </div>
+                    `).join('');
+                }
+
+                const userSelect = document.getElementById('manageChannelAddUserSelect');
+                if (userSelect) {
+                    if (data.available_users.length === 0) {
+                        userSelect.innerHTML = `<option value="">Todos los miembros del workspace ya están en el canal</option>`;
+                    } else {
+                        userSelect.innerHTML = `<option value="">Selecciona un usuario para agregar...</option>` + 
+                            data.available_users.map(u => `<option value="${u.id}">${u.display_name} (@${u.username})</option>`).join('');
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('Error cargando detalles del canal:', e);
+        }
+    }
+
+    window.submitChannelAddMember = async function() {
+        if (!currentManagingChannelId) return;
+        const select = document.getElementById('manageChannelAddUserSelect');
+        const userId = select ? select.value : null;
+        if (!userId) return;
+
+        try {
+            const res = await fetch(`/api/channels/${currentManagingChannelId}/manage/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken || document.querySelector('[name=csrfmiddlewaretoken]')?.value || '',
+                },
+                body: JSON.stringify({ action: 'add_member', user_id: userId })
+            });
+            const data = await res.json();
+            if (res.ok && data.status === 'success') {
+                await loadManageChannelData(currentManagingChannelId);
+            } else {
+                alert(data.message || 'Error al agregar miembro.');
+            }
+        } catch (e) {
+            alert('Error de conexión.');
+        }
+    };
+
+    window.submitChannelRemoveMember = async function(userId, username) {
+        if (!currentManagingChannelId) return;
+        if (!confirm(`¿Estás seguro de quitar a @${username} de este canal? Ya no podrá ver ni participar en el grupo.`)) return;
+
+        try {
+            const res = await fetch(`/api/channels/${currentManagingChannelId}/manage/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken || document.querySelector('[name=csrfmiddlewaretoken]')?.value || '',
+                },
+                body: JSON.stringify({ action: 'remove_member', user_id: userId })
+            });
+            const data = await res.json();
+            if (res.ok && data.status === 'success') {
+                await loadManageChannelData(currentManagingChannelId);
+            } else {
+                alert(data.message || 'Error al quitar miembro.');
+            }
+        } catch (e) {
+            alert('Error de conexión.');
+        }
+    };
+
+    window.submitChannelToggleManager = async function(userId) {
+        if (!currentManagingChannelId) return;
+        try {
+            const res = await fetch(`/api/channels/${currentManagingChannelId}/manage/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken || document.querySelector('[name=csrfmiddlewaretoken]')?.value || '',
+                },
+                body: JSON.stringify({ action: 'toggle_manager', user_id: userId })
+            });
+            const data = await res.json();
+            if (res.ok && data.status === 'success') {
+                await loadManageChannelData(currentManagingChannelId);
+            } else {
+                alert(data.message || 'Error al cambiar rol.');
+            }
+        } catch (e) {
+            alert('Error de conexión.');
+        }
+    };
+
+    window.submitChannelUpdateTopic = async function() {
+        if (!currentManagingChannelId) return;
+        const topicInput = document.getElementById('manageChannelTopicInput');
+        const topic = topicInput ? topicInput.value.trim() : '';
+
+        try {
+            const res = await fetch(`/api/channels/${currentManagingChannelId}/manage/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken || document.querySelector('[name=csrfmiddlewaretoken]')?.value || '',
+                },
+                body: JSON.stringify({ action: 'update_topic', topic: topic })
+            });
+            const data = await res.json();
+            if (res.ok && data.status === 'success') {
+                alert('Tema del canal actualizado.');
+            }
+        } catch (e) {
+            alert('Error de conexión.');
+        }
+    };
+
+    window.submitChannelDelete = async function() {
+        if (!currentManagingChannelId) return;
+        if (!confirm('⚠️ ¿Estás COMPLETAMENTE seguro de eliminar este canal? Todos los mensajes y archivos serán eliminados y esta acción NO se puede deshacer.')) return;
+
+        try {
+            const res = await fetch(`/api/channels/${currentManagingChannelId}/manage/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken || document.querySelector('[name=csrfmiddlewaretoken]')?.value || '',
+                },
+                body: JSON.stringify({ action: 'delete_channel' })
+            });
+            const data = await res.json();
+            if (res.ok && data.status === 'success') {
+                window.location.href = data.redirect_url || '/';
+            } else {
+                alert(data.message || 'Error al eliminar canal.');
+            }
+        } catch (e) {
+            alert('Error de conexión.');
+        }
+    };
 });
 
 

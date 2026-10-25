@@ -33,13 +33,18 @@ from django.contrib.auth.models import User
 from apps.chat.models import Workspace, Channel
 
 # Crear superusuario admin si no existe
-if not User.objects.filter(username='admin').exists():
-    User.objects.create_superuser('admin', 'admin@telegraph.local', 'Admin123456!')
+admin_user = User.objects.filter(username='admin').first()
+if not admin_user:
+    admin_user = User.objects.create_superuser('admin', 'admin@telegraph.local', 'Admin123456!')
     print('Superusuario creado: admin / Admin123456!')
+if hasattr(admin_user, 'profile'):
+    admin_user.profile.role = 'admin'
+    admin_user.profile.save()
 
 # Crear usuario dev demo si no existe
-if not User.objects.filter(username='developer').exists():
-    User.objects.create_user('developer', 'dev@telegraph.local', 'DevPass123456!')
+dev_user = User.objects.filter(username='developer').first()
+if not dev_user:
+    dev_user = User.objects.create_user('developer', 'dev@telegraph.local', 'DevPass123456!')
     print('Usuario demo creado: developer / DevPass123456!')
 
 # Crear workspace y canales por defecto
@@ -51,10 +56,22 @@ ws, _ = Workspace.objects.get_or_create(
 for u in User.objects.all():
     ws.members.add(u)
 
-Channel.objects.get_or_create(workspace=ws, name='general', topic='Conversación general y coordinación')
-Channel.objects.get_or_create(workspace=ws, name='codigo-python', topic='Snippets de Python, Django y Arquitectura')
-Channel.objects.get_or_create(workspace=ws, name='devops-ci-cd', topic='Despliegues, Podman y contenedores')
-Channel.objects.get_or_create(workspace=ws, name='seguridad-dlp', topic='Auditorías de credenciales y secretos efímeros')
+ch_gen, _ = Channel.objects.get_or_create(workspace=ws, name='general', defaults={'topic': 'Conversación general y coordinación', 'is_general': True})
+ch_gen.is_general = True
+ch_gen.save()
+
+Channel.objects.get_or_create(workspace=ws, name='codigo-python', defaults={'topic': 'Snippets de Python, Django y Arquitectura'})
+Channel.objects.get_or_create(workspace=ws, name='devops-ci-cd', defaults={'topic': 'Despliegues, Podman y contenedores'})
+Channel.objects.get_or_create(workspace=ws, name='seguridad-dlp', defaults={'topic': 'Auditorías de credenciales y secretos efímeros'})
+
+# Asignar a admin como encargado inicial de canales base
+for ch in Channel.objects.filter(workspace=ws):
+    if admin_user:
+        ch.managers.add(admin_user)
+        ch.members.add(admin_user)
+    if dev_user and ch.is_general:
+        ch.members.add(dev_user)
+
 print('Estructura de Workspace y Canales verificada.')
 " || true
 

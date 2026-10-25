@@ -34,53 +34,83 @@ def get_encryption_cipher():
         raw_key = base64.urlsafe_b64encode(raw_key.ljust(32, 'a').encode()[:32]).decode()
     return Fernet(raw_key.encode())
 
+def get_accessible_channels(user, workspace):
+    """
+    Retorna únicamente los canales que el usuario tiene permiso de ver:
+    - Superusuarios y Administradores de workspace ven todos los canales.
+    - Miembros ven canales generales (is_general=True),
+      canales donde son miembros (members=user) o encargados (managers=user).
+    Todo lo demás es 100% invisible.
+    """
+    if not workspace:
+        return Channel.objects.none()
+    if user.is_superuser or (hasattr(user, 'profile') and user.profile.is_workspace_admin()):
+        return workspace.channels.all().order_by('-is_general', 'name')
+    from django.db.models import Q
+    return workspace.channels.filter(
+        Q(is_general=True) |
+        Q(members=user) |
+        Q(managers=user)
+    ).distinct().order_by('-is_general', 'name')
+
 @login_required
 def index_view(request):
     """Vista principal de la plataforma colaborativa Telegraph."""
-    # Asegurar existencia de workspace y canales iniciales si está vacío
     workspace = Workspace.objects.first()
     if not workspace:
         workspace = Workspace.objects.create(
-            name="DevCore Principal",
-            slug="devcore-principal",
+            name="Telegraph Engineering",
+            slug="telegraph-engineering",
             description="Espacio de trabajo seguro para desarrollo de software"
         )
         workspace.members.add(request.user)
-        Channel.objects.create(workspace=workspace, name="general", topic="Discusión general del equipo")
-        Channel.objects.create(workspace=workspace, name="codigo-python", topic="Revisión de arquitectura y código Python")
-        Channel.objects.create(workspace=workspace, name="seguridad-dlp", topic="Auditorías y alertas de fuga de datos")
+        ch_gen = Channel.objects.create(workspace=workspace, name="general", topic="Conversación general del equipo", is_general=True)
+        ch_gen.managers.add(request.user)
+        ch_gen.members.add(request.user)
 
-    active_channel = workspace.channels.first()
-    return redirect('channel_view', channel_id=active_channel.id)
+    accessible = get_accessible_channels(request.user, workspace)
+    first_channel = accessible.first()
+    if not first_channel:
+        first_channel, _ = Channel.objects.get_or_create(workspace=workspace, name="general", defaults={'is_general': True})
+        first_channel.members.add(request.user)
+
+    return redirect('channel_view', channel_id=first_channel.id)
 
 @login_required
 def channel_view(request, channel_id):
     """Vista de un canal específico dentro de un workspace."""
     channel = get_object_or_404(Channel, id=channel_id)
     workspace = channel.workspace
-    
-    # Canales del workspace
-    channels = workspace.channels.all()
-    
-    # Conversaciones directas (DMs) del usuario
+
+    # Comprobar permisos con can_view
+    if not channel.can_view(request.user):
+        # Redirección transparente y limpia al primer canal accesible (sin error brusco)
+        accessible = get_accessible_channels(request.user, workspace)
+        first_ch = accessible.first()
+        if first_ch and first_ch.id != channel.id:
+            return redirect('channel_view', channel_id=first_ch.id)
+        return redirect('index')
+
+    channels = get_accessible_channels(request.user, workspace)
     direct_conversations = request.user.direct_conversations.all()
-    
-    # Mensajes recientes (últimos 50)
     messages = channel.messages.select_related('author').prefetch_related('attachments').order_by('created_at')[:50]
     
-    # Secretos efímeros activos en el canal
     active_secrets = channel.ephemeral_secrets.filter(
         is_destroyed=False,
         expires_at__gt=timezone.now()
     ).select_related('author')
 
-    # Miembros del workspace
-    members = workspace.members.all()
-    if not members.exists():
-        workspace.members.add(request.user)
+    # Miembros visibles para este canal
+    if channel.is_general:
         members = workspace.members.all()
+    else:
+        from django.db.models import Q
+        members = User.objects.filter(Q(channel_memberships=channel) | Q(managed_channels=channel)).distinct()
 
     stickers = Sticker.objects.all()
+
+    is_channel_manager = channel.can_manage(request.user)
+    is_workspace_admin = request.user.profile.is_workspace_admin() if hasattr(request.user, 'profile') else request.user.is_superuser
 
     context = {
         'workspace': workspace,
@@ -93,6 +123,8 @@ def channel_view(request, channel_id):
         'stickers': stickers,
         'room_id': str(channel.id),
         'is_direct': False,
+        'is_channel_manager': is_channel_manager,
+        'is_workspace_admin': is_workspace_admin,
     }
     return render(request, 'chat/telegraph_app.html', context)
 
@@ -102,7 +134,7 @@ def dm_view(request, conversation_id):
     conversation = get_object_or_404(DirectConversation, id=conversation_id, participants=request.user)
     other_user = conversation.get_other_participant(request.user)
     workspace = Workspace.objects.first()
-    channels = workspace.channels.all() if workspace else []
+    channels = get_accessible_channels(request.user, workspace)
 
     direct_conversations = request.user.direct_conversations.all()
     messages = conversation.messages.select_related('author').prefetch_related('attachments').order_by('created_at')[:50]
@@ -111,6 +143,8 @@ def dm_view(request, conversation_id):
         is_destroyed=False,
         expires_at__gt=timezone.now()
     ).select_related('author')
+
+    is_workspace_admin = request.user.profile.is_workspace_admin() if hasattr(request.user, 'profile') else request.user.is_superuser
 
     context = {
         'workspace': workspace,
@@ -123,8 +157,228 @@ def dm_view(request, conversation_id):
         'members': workspace.members.all() if workspace else [],
         'room_id': str(conversation.id),
         'is_direct': True,
+        'is_channel_manager': False,
+        'is_workspace_admin': is_workspace_admin,
     }
     return render(request, 'chat/telegraph_app.html', context)
+
+@login_required
+@require_POST
+def create_channel_api(request):
+    """
+    Creación de canal restringida a Administradores Generales de Workspace.
+    Permite definir nombre, tema, encargado principal y miembros iniciales.
+    """
+    user = request.user
+    is_admin = user.is_superuser or (hasattr(user, 'profile') and user.profile.is_workspace_admin())
+    if not is_admin:
+        return JsonResponse({'status': 'error', 'message': 'Solo los administradores pueden crear canales.'}, status=403)
+
+    workspace = Workspace.objects.first()
+    if not workspace:
+        return JsonResponse({'status': 'error', 'message': 'No existe un espacio de trabajo activo.'}, status=400)
+
+    try:
+        data = json.loads(request.body.decode('utf-8')) if request.body else request.POST
+    except Exception:
+        data = request.POST
+
+    raw_name = str(data.get('name', '')).strip().lower()
+    import re
+    clean_name = re.sub(r'[^a-z0-9-_]', '', raw_name.replace(' ', '-'))[:80]
+    topic = str(data.get('topic', '')).strip()[:255]
+    manager_id = data.get('manager_id')
+    member_ids = data.get('member_ids', [])
+    if isinstance(member_ids, str):
+        member_ids = [m.strip() for m in member_ids.split(',') if m.strip()]
+
+    if not clean_name:
+        return JsonResponse({'status': 'error', 'message': 'El nombre del canal no es válido.'}, status=400)
+
+    if Channel.objects.filter(workspace=workspace, name=clean_name).exists():
+        return JsonResponse({'status': 'error', 'message': f'Ya existe un canal llamado #{clean_name}.'}, status=400)
+
+    channel = Channel.objects.create(
+        workspace=workspace,
+        name=clean_name,
+        topic=topic,
+        created_by=user,
+        is_general=False
+    )
+
+    # El creador siempre forma parte del canal
+    channel.managers.add(user)
+    channel.members.add(user)
+
+    # Asignar encargado seleccionado si se indicó uno específico
+    if manager_id:
+        mgr = User.objects.filter(id=manager_id).first()
+        if mgr:
+            channel.managers.add(mgr)
+            channel.members.add(mgr)
+
+    # Asignar miembros iniciales
+    if member_ids:
+        members_to_add = User.objects.filter(id__in=member_ids)
+        channel.members.add(*members_to_add)
+
+    AuditService.log(
+        event_type='CHANNEL_CREATED',
+        actor=user,
+        severity='INFO',
+        request=request,
+        details={'channel_name': clean_name, 'channel_id': str(channel.id)}
+    )
+
+    return JsonResponse({
+        'status': 'success',
+        'channel_id': str(channel.id),
+        'channel_name': channel.name,
+        'redirect_url': f'/channels/{channel.id}/'
+    })
+
+@login_required
+def manage_channel_api(request, channel_id):
+    """
+    Gestión de miembros y encargados del canal estilo WhatsApp (Agregar, Quitar, Hacer Encargado, Eliminar).
+    Solo accesible por los Encargados del canal o Administradores de Workspace.
+    """
+    channel = get_object_or_404(Channel, id=channel_id)
+    if not channel.can_manage(request.user):
+        return JsonResponse({'status': 'error', 'message': 'No tienes permisos de encargado en este canal.'}, status=403)
+
+    if request.method == 'GET':
+        # Lista de miembros actuales
+        members_data = []
+        for u in channel.members.select_related('profile').all().order_by('username'):
+            members_data.append({
+                'id': u.id,
+                'username': u.username,
+                'display_name': u.profile.get_display_name() if hasattr(u, 'profile') else u.username,
+                'avatar_url': u.profile.get_avatar_url() if hasattr(u, 'profile') else None,
+                'is_manager': channel.managers.filter(id=u.id).exists(),
+                'is_creator': channel.created_by_id == u.id,
+            })
+
+        # Lista de usuarios disponibles en el workspace para agregar
+        workspace_users = channel.workspace.members.exclude(id__in=channel.members.values_list('id', flat=True)).select_related('profile').order_by('username')
+        available_data = []
+        for u in workspace_users:
+            available_data.append({
+                'id': u.id,
+                'username': u.username,
+                'display_name': u.profile.get_display_name() if hasattr(u, 'profile') else u.username,
+                'avatar_url': u.profile.get_avatar_url() if hasattr(u, 'profile') else None,
+            })
+
+        return JsonResponse({
+            'status': 'success',
+            'channel_name': channel.name,
+            'topic': channel.topic,
+            'is_general': channel.is_general,
+            'is_creator': channel.created_by_id == request.user.id,
+            'members': members_data,
+            'available_users': available_data,
+        })
+
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body.decode('utf-8')) if request.body else request.POST
+        except Exception:
+            data = request.POST
+
+        action = data.get('action')
+        target_user_id = data.get('user_id')
+
+        if action == 'add_member':
+            target_user = get_object_or_404(User, id=target_user_id)
+            channel.members.add(target_user)
+            AuditService.log(
+                event_type='CHANNEL_MEMBER_ADDED',
+                actor=request.user,
+                severity='INFO',
+                request=request,
+                details={'channel_name': channel.name, 'target_user': target_user.username}
+            )
+            return JsonResponse({'status': 'success', 'message': f'{target_user.username} añadido al canal.'})
+
+        elif action == 'remove_member':
+            target_user = get_object_or_404(User, id=target_user_id)
+            if target_user.id == channel.created_by_id and not request.user.is_superuser:
+                return JsonResponse({'status': 'error', 'message': 'No se puede remover al creador del canal.'}, status=400)
+            channel.members.remove(target_user)
+            channel.managers.remove(target_user)
+            AuditService.log(
+                event_type='CHANNEL_MEMBER_REMOVED',
+                actor=request.user,
+                severity='INFO',
+                request=request,
+                details={'channel_name': channel.name, 'target_user': target_user.username}
+            )
+            return JsonResponse({'status': 'success', 'message': f'{target_user.username} removido del canal.'})
+
+        elif action == 'toggle_manager':
+            target_user = get_object_or_404(User, id=target_user_id)
+            is_mgr = channel.managers.filter(id=target_user.id).exists()
+            if is_mgr:
+                channel.managers.remove(target_user)
+                msg = f'{target_user.username} ya no es encargado del canal.'
+            else:
+                channel.managers.add(target_user)
+                channel.members.add(target_user)
+                msg = f'{target_user.username} ahora es Encargado del canal 👑.'
+            AuditService.log(
+                event_type='CHANNEL_MANAGER_UPDATED',
+                actor=request.user,
+                severity='INFO',
+                request=request,
+                details={'channel_name': channel.name, 'target_user': target_user.username, 'is_manager': not is_mgr}
+            )
+            return JsonResponse({'status': 'success', 'message': msg, 'is_manager': not is_mgr})
+
+        elif action == 'update_topic':
+            new_topic = str(data.get('topic', '')).strip()[:255]
+            channel.topic = new_topic
+            channel.save(update_fields=['topic'])
+            return JsonResponse({'status': 'success', 'message': 'Tema del canal actualizado.'})
+
+        elif action == 'delete_channel':
+            if channel.is_general:
+                return JsonResponse({'status': 'error', 'message': 'El canal general no puede ser eliminado.'}, status=400)
+            is_admin = request.user.is_superuser or (hasattr(request.user, 'profile') and request.user.profile.is_workspace_admin())
+            if not is_admin and channel.created_by_id != request.user.id:
+                return JsonResponse({'status': 'error', 'message': 'Solo el creador o un Administrador pueden eliminar este canal.'}, status=403)
+            ch_name = channel.name
+            channel.delete()
+            AuditService.log(
+                event_type='CHANNEL_DELETED',
+                actor=request.user,
+                severity='WARNING',
+                request=request,
+                details={'channel_name': ch_name}
+            )
+            return JsonResponse({'status': 'success', 'message': f'Canal #{ch_name} eliminado.', 'redirect_url': '/'})
+
+        return JsonResponse({'status': 'error', 'message': 'Acción no reconocida.'}, status=400)
+
+@login_required
+@require_GET
+def get_workspace_users_api(request):
+    """Retorna la lista de todos los usuarios del espacio de trabajo con su nombre y avatar."""
+    workspace = Workspace.objects.first()
+    if not workspace:
+        return JsonResponse({'status': 'success', 'users': []})
+
+    users_data = []
+    for u in workspace.members.select_related('profile').all().order_by('username'):
+        users_data.append({
+            'id': u.id,
+            'username': u.username,
+            'display_name': u.profile.get_display_name() if hasattr(u, 'profile') else u.username,
+            'avatar_url': u.profile.get_avatar_url() if hasattr(u, 'profile') else None,
+            'role': u.profile.role if hasattr(u, 'profile') else 'member',
+        })
+    return JsonResponse({'status': 'success', 'users': users_data})
 
 @login_required
 @require_POST

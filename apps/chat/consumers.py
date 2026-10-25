@@ -14,6 +14,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
             return
 
         self.room_id = self.scope['url_route']['kwargs']['room_id']
+        has_access = await self.check_user_access()
+        if not has_access:
+            await self.close(code=4403)
+            return
+
         self.room_group_name = f"chat_{self.room_id}"
         self.user_group_name = f"user_{self.user.username}"
 
@@ -26,6 +31,16 @@ class ChatConsumer(AsyncWebsocketConsumer):
             self.channel_name
         )
         await self.accept()
+
+    @database_sync_to_async
+    def check_user_access(self):
+        channel = Channel.objects.filter(id=self.room_id).first()
+        if channel:
+            return channel.can_view(self.user)
+        dm = DirectConversation.objects.filter(id=self.room_id).first()
+        if dm:
+            return dm.participants.filter(id=self.user.id).exists()
+        return False
 
     async def disconnect(self, close_code):
         if hasattr(self, 'room_group_name'):

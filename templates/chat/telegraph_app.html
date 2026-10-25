@@ -108,17 +108,21 @@
 
             <!-- Sección Canales de Texto (Workspace) -->
             <div class="sidebar-divider" style="margin-top: 12px;"></div>
-            <div class="section-label">
+            <div class="section-label" style="display: flex; justify-content: space-between; align-items: center;">
                 <span>Canales de Texto</span>
-                <span style="font-size: 13px; color: var(--text-muted);">#</span>
+                {% if is_workspace_admin %}
+                    <button class="btn-icon" onclick="openCreateChannelModal()" title="Crear nuevo canal de texto" style="font-size: 16px; padding: 2px;">+</button>
+                {% else %}
+                    <span style="font-size: 13px; color: var(--text-muted);">#</span>
+                {% endif %}
             </div>
             {% for ch in channels %}
                 <a href="{% url 'channel_view' ch.id %}" class="channel-item {% if not is_direct and ch.id == active_channel.id %}active{% endif %}">
-                    <span class="channel-hash">#</span>
+                    <span class="channel-hash">{% if ch.is_general %}#{% else %}🔒{% endif %}</span>
                     <span>{{ ch.name }}</span>
                 </a>
             {% empty %}
-                <div style="font-size: 12px; color: var(--text-muted); padding: 6px 12px;">No hay canales creados.</div>
+                <div style="font-size: 12px; color: var(--text-muted); padding: 6px 12px;">No tienes canales asignados.</div>
             {% endfor %}
         </div>
 
@@ -164,8 +168,11 @@
                     </div>
                     <span class="header-title">{{ other_user.profile.get_display_name|default:other_user.username }}</span>
                 {% else %}
-                    <span class="channel-hash">#</span>
+                    <span class="channel-hash">{% if active_channel.is_general %}#{% else %}🔒{% endif %}</span>
                     <span class="header-title">{{ active_channel.name }}</span>
+                    {% if is_channel_manager %}
+                        <span style="background: rgba(240, 178, 50, 0.2); border: 1px solid #f0b232; color: #f0b232; font-size: 11px; padding: 2px 7px; border-radius: 4px; margin-left: 6px; font-weight: 600;">👑 Eres Encargado</span>
+                    {% endif %}
                     {% if active_channel.topic %}
                         <span class="header-topic">{{ active_channel.topic }}</span>
                     {% endif %}
@@ -174,6 +181,11 @@
 
             <!-- Acciones de cabecera: Llamada, Videollamada, Pin, Drawer Perfil, Buscador -->
             <div class="header-actions">
+                {% if not is_direct and is_channel_manager %}
+                    <button type="button" class="btn-badge-action" title="Administrar Miembros y Encargados del Canal" onclick="openManageChannelModal('{{ active_channel.id }}')" style="background: rgba(88, 101, 242, 0.2); border: 1px solid #5865f2; color: #f2f3f5; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                        👥 Gestionar Canal 👑
+                    </button>
+                {% endif %}
                 <button type="button" class="btn-icon-header" title="Iniciar llamada de voz segura" onclick="startCall('audio')">📞</button>
                 <button type="button" class="btn-icon-header" title="Iniciar videollamada segura" onclick="startCall('video')">📹</button>
                 <button type="button" class="btn-icon-header" title="Mensajes fijados" onclick="alert('No hay mensajes fijados en esta conversación.')">📌</button>
@@ -872,6 +884,126 @@
         </form>
     </div>
 </div>
+
+<!-- Modal: Crear Nuevo Canal (Solo Administradores) -->
+<div class="modal-overlay" id="createChannelModal" onclick="if(event.target===this)closeCreateChannelModal()">
+    <div class="modal-content" style="width: 520px;">
+        <div class="modal-header">
+            <h3 class="modal-title">➕ Crear Nuevo Canal</h3>
+            <button class="modal-close" onclick="closeCreateChannelModal()">✕</button>
+        </div>
+        <form id="createChannelForm" onsubmit="event.preventDefault(); submitCreateChannel();">
+            {% csrf_token %}
+            <div class="form-group">
+                <label class="form-label">Nombre del Canal</label>
+                <div style="display: flex; align-items: center; background: #1e1f22; border: 1px solid #383a40; border-radius: 6px; padding: 0 10px;">
+                    <span style="color: var(--text-muted); font-size: 16px; font-weight: 700; margin-right: 6px;">#</span>
+                    <input type="text" id="newChannelName" class="form-control" required placeholder="qa-testing" 
+                           style="border: none; background: transparent; padding-left: 0;"
+                           oninput="this.value = this.value.toLowerCase().replace(/[^a-z0-9-_]/g, '')">
+                </div>
+                <small style="color: var(--text-muted); font-size: 11.5px; margin-top: 4px; display: block;">Solo letras minúsculas, números y guiones.</small>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Tema o Descripción (Opcional)</label>
+                <input type="text" id="newChannelTopic" class="form-control" placeholder="Ej: Coordinación del equipo de QA y pruebas">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">👑 Encargado Principal del Canal (Admin de Grupo)</label>
+                <select id="newChannelManagerSelect" class="form-control">
+                    <option value="">Cargando usuarios...</option>
+                </select>
+                <small style="color: var(--text-muted); font-size: 11.5px; margin-top: 4px; display: block;">Tendrá permisos para agregar/quitar miembros y gestionar el canal.</small>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">👥 Miembros Asignados (Acceso Exclusivo)</label>
+                <div id="newChannelMembersList" style="max-height: 180px; overflow-y: auto; background: #1e1f22; border: 1px solid #383a40; border-radius: 6px; padding: 10px;">
+                    <div style="color: var(--text-muted); font-size: 12px; text-align: center;">Cargando lista de usuarios...</div>
+                </div>
+                <small style="color: var(--text-muted); font-size: 11.5px; margin-top: 4px; display: block;">Solo los usuarios marcados podrán ver y participar en este canal.</small>
+            </div>
+
+            <div id="createChannelError" style="display: none; background: rgba(242, 63, 67, 0.2); border: 1px solid #f23f43; color: #ff7b72; padding: 8px 12px; border-radius: 6px; font-size: 12.5px; margin-bottom: 12px;"></div>
+
+            <div class="modal-actions" style="margin-top: 18px;">
+                <button type="button" class="btn-secondary" onclick="closeCreateChannelModal()">Cancelar</button>
+                <button type="submit" class="btn-primary" id="btnSubmitCreateChannel">Crear Canal</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Administrar Grupo / Canal (Estilo WhatsApp) -->
+<div class="modal-overlay" id="manageChannelModal" onclick="if(event.target===this)closeManageChannelModal()">
+    <div class="modal-content" style="width: 540px; max-height: 85vh; display: flex; flex-direction: column;">
+        <div class="modal-header">
+            <div>
+                <h3 class="modal-title" id="manageChannelModalTitle">👥 Administrar Grupo / Canal</h3>
+                <div style="font-size: 12px; color: var(--text-muted);" id="manageChannelModalSubtitle">Gestión de participantes y encargados</div>
+            </div>
+            <button class="modal-close" onclick="closeManageChannelModal()">✕</button>
+        </div>
+
+        <div style="overflow-y: auto; padding-right: 4px; flex: 1;">
+            <!-- Sección: Participantes actuales -->
+            <div style="margin-bottom: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <span style="font-size: 12.5px; font-weight: 700; color: #dbdee1; text-transform: uppercase; letter-spacing: 0.5px;" id="manageChannelMembersCount">
+                        Participantes
+                    </span>
+                </div>
+                <div id="manageChannelMembersList" style="display: flex; flex-direction: column; gap: 8px;">
+                    <div style="text-align: center; color: var(--text-muted); font-size: 12px; padding: 12px;">Cargando participantes...</div>
+                </div>
+            </div>
+
+            <!-- Sección: Agregar nuevo participante -->
+            <div style="background: #2b2d31; border: 1px solid #383a40; border-radius: 8px; padding: 14px; margin-bottom: 20px;">
+                <label class="form-label" style="margin-bottom: 8px; font-size: 13px;">➕ Agregar Nuevo Participante al Canal</label>
+                <div style="display: flex; gap: 8px;">
+                    <select id="manageChannelAddUserSelect" class="form-control" style="flex: 1;">
+                        <option value="">Selecciona un usuario...</option>
+                    </select>
+                    <button type="button" class="btn-primary" onclick="submitChannelAddMember()" style="padding: 8px 16px; font-size: 13px; white-space: nowrap;">
+                        Agregar
+                    </button>
+                </div>
+            </div>
+
+            <!-- Sección: Ajustar Tema / Descripción -->
+            <div style="background: #2b2d31; border: 1px solid #383a40; border-radius: 8px; padding: 14px; margin-bottom: 20px;">
+                <label class="form-label" style="margin-bottom: 8px; font-size: 13px;">📝 Tema o Descripción del Canal</label>
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="manageChannelTopicInput" class="form-control" style="flex: 1;" placeholder="Descripción del grupo">
+                    <button type="button" class="btn-secondary" onclick="submitChannelUpdateTopic()" style="padding: 8px 16px; font-size: 13px; white-space: nowrap;">
+                        Guardar
+                    </button>
+                </div>
+            </div>
+
+            <!-- Sección: Zona de Peligro (Eliminar) -->
+            <div id="manageChannelDangerZone" style="border-top: 1px solid rgba(242, 63, 67, 0.3); padding-top: 14px; display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div style="font-size: 13px; font-weight: 700; color: #ff7b72;">Eliminar este Canal</div>
+                        <div style="font-size: 11.5px; color: var(--text-muted);">Esta acción borrará todos los mensajes y no se puede deshacer.</div>
+                    </div>
+                    <button type="button" class="btn-danger" onclick="submitChannelDelete()" style="background: rgba(242,63,67,0.2); border: 1px solid #f23f43; color: #ff7b72; padding: 6px 12px; font-size: 12px; border-radius: 4px; cursor: pointer;">
+                        🗑️ Eliminar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-actions" style="margin-top: 16px; border-top: 1px solid #3f4147; padding-top: 12px;">
+            <button type="button" class="btn-secondary" onclick="closeManageChannelModal()">Cerrar</button>
+        </div>
+    </div>
+</div>
+
 <!-- Modal Compacto: Subir o Importar Sticker Personalizado (Telegram / WebP / PNG) -->
 <div class="modal-overlay" id="customStickerUploadModal" onclick="if(event.target===this)closeCustomStickerModal()">
     <div class="modal-content" style="width: 480px;">

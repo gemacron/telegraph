@@ -38,6 +38,13 @@ class SecurityAuditLog(models.Model):
         # Transferencia de Archivos
         ('ATTACHMENT_UPLOADED', 'Archivo o Imagen Verificada Subida'),
         ('ATTACHMENT_BLOCKED', 'Archivo Sospechoso / Malicioso Rechazado'),
+
+        # Gestión de Canales y Grupos
+        ('CHANNEL_CREATED', 'Creación de Nuevo Canal'),
+        ('CHANNEL_MEMBER_ADDED', 'Asignación de Usuario a Canal'),
+        ('CHANNEL_MEMBER_REMOVED', 'Remoción de Usuario de Canal'),
+        ('CHANNEL_MANAGER_UPDATED', 'Actualización de Encargados de Canal'),
+        ('CHANNEL_DELETED', 'Eliminación de Canal'),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

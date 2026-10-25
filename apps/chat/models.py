@@ -21,11 +21,20 @@ class UserProfile(models.Model):
     custom_status = models.CharField(max_length=120, blank=True, default="Programando 💻")
     avatar = models.ImageField(upload_to="avatars/%Y/%m/", null=True, blank=True)
     banner_color = models.CharField(max_length=7, default="#5865f2")
+    ROLE_CHOICES = [
+        ('admin', 'Administrador General'),
+        ('member', 'Miembro Estándar'),
+    ]
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='member')
     two_factor_enabled = models.BooleanField(default=False)
     totp_secret = models.CharField(max_length=64, blank=True, default="")
     backup_codes = models.JSONField(default=list, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def is_workspace_admin(self):
+        """Retorna True si el usuario tiene privilegios de administrador general o superusuario."""
+        return self.role == 'admin' or self.user.is_superuser or self.user.is_staff
 
     def get_display_name(self):
         return self.display_name.strip() if self.display_name else self.user.username
@@ -142,12 +151,57 @@ class Channel(models.Model):
     name = models.CharField(max_length=80)
     topic = models.CharField(max_length=255, blank=True, default="")
     channel_type = models.CharField(max_length=20, choices=CHANNEL_TYPES, default='text')
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="created_channels")
+    managers = models.ManyToManyField(User, related_name="managed_channels", blank=True)
+    members = models.ManyToManyField(User, related_name="channel_memberships", blank=True)
+    is_general = models.BooleanField(default=False)
     is_private = models.BooleanField(default=False)
     allowed_members = models.ManyToManyField(User, related_name="private_channels", blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         unique_together = ('workspace', 'name')
+
+    def can_view(self, user):
+        """
+        Un usuario puede ver el canal si:
+        - Es superusuario o Administrador general del workspace.
+        - O el canal es el canal general (#general).
+        - O el usuario es un Encargado (manager) del canal.
+        - O el usuario es un Miembro asignado (members) del canal.
+        """
+        if not user or not user.is_authenticated:
+            return False
+        if user.is_superuser or user.is_staff:
+            return True
+        if hasattr(user, 'profile') and user.profile.is_workspace_admin():
+            return True
+        if self.is_general:
+            return True
+        if self.managers.filter(id=user.id).exists():
+            return True
+        if self.members.filter(id=user.id).exists():
+            return True
+        return False
+
+    def can_manage(self, user):
+        """
+        Un usuario puede administrar (agregar/quitar miembros, cambiar tema) si:
+        - Es superusuario o Administrador general del workspace.
+        - O es el creador del canal (created_by).
+        - O está en la lista de Encargados (managers) del canal (estilo WhatsApp).
+        """
+        if not user or not user.is_authenticated:
+            return False
+        if user.is_superuser or user.is_staff:
+            return True
+        if hasattr(user, 'profile') and user.profile.is_workspace_admin():
+            return True
+        if self.created_by_id == user.id:
+            return True
+        if self.managers.filter(id=user.id).exists():
+            return True
+        return False
 
     def __str__(self):
         return f"#{self.name} ({self.workspace.name})"
