@@ -49,7 +49,6 @@ def get_accessible_channels(user, workspace):
     from django.db.models import Q
     return workspace.channels.filter(
         Q(is_general=True) |
-        Q(is_private=False) |
         Q(members=user) |
         Q(managers=user)
     ).distinct().order_by('-is_general', 'name')
@@ -193,7 +192,7 @@ def create_channel_api(request):
     if isinstance(raw_is_private, str):
         is_private = raw_is_private.lower() in ['true', '1', 'private']
     elif raw_is_private is None:
-        is_private = False
+        is_private = True
     else:
         is_private = bool(raw_is_private)
 
@@ -228,9 +227,13 @@ def create_channel_api(request):
             channel.members.add(mgr)
 
     # Asignar miembros iniciales
-    if member_ids:
-        members_to_add = User.objects.filter(id__in=member_ids)
-        channel.members.add(*members_to_add)
+    if is_private:
+        if member_ids:
+            members_to_add = User.objects.filter(id__in=member_ids)
+            channel.members.add(*members_to_add)
+    else:
+        # En canales públicos, todos los miembros actuales del workspace tienen acceso
+        channel.members.add(*workspace.members.all())
 
     AuditService.log(
         event_type='CHANNEL_CREATED',

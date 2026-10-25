@@ -47,7 +47,7 @@ class WhatsAppStyleChannelTests(TestCase):
         self.secret_channel.managers.add(self.manager_user)
         self.secret_channel.members.add(self.manager_user, self.member_user)
 
-        # Create Public Channel
+        # Create Public Channel (All workspace members assigned)
         self.public_channel = Channel.objects.create(
             workspace=self.workspace,
             name="public-discussion",
@@ -55,6 +55,7 @@ class WhatsAppStyleChannelTests(TestCase):
             is_private=False,
             created_by=self.admin_user
         )
+        self.public_channel.members.add(self.admin_user, self.manager_user, self.member_user, self.outsider_user)
 
     def test_channel_visibility(self):
         """Outsider should not see private channel, but can see public channel"""

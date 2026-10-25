@@ -176,7 +176,7 @@ class Channel(models.Model):
             return True
         if hasattr(user, 'profile') and user.profile.is_workspace_admin():
             return True
-        if self.is_general or not self.is_private:
+        if self.is_general:
             return True
         if self.managers.filter(id=user.id).exists():
             return True
