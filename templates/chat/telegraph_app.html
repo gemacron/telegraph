@@ -171,7 +171,7 @@
                     <span class="channel-hash">{% if active_channel.is_general %}#{% else %}🔒{% endif %}</span>
                     <span class="header-title">{{ active_channel.name }}</span>
                     {% if is_channel_manager %}
-                        <span style="background: rgba(240, 178, 50, 0.2); border: 1px solid #f0b232; color: #f0b232; font-size: 11px; padding: 2px 7px; border-radius: 4px; margin-left: 6px; font-weight: 600;">👑 Eres Encargado</span>
+                        <span style="background: rgba(240, 178, 50, 0.2); border: 1px solid #f0b232; color: #f0b232; font-size: 11px; padding: 2px 7px; border-radius: 4px; margin-left: 6px; font-weight: 600;">👑 Eres Administrador</span>
                     {% endif %}
                     {% if active_channel.topic %}
                         <span class="header-topic">{{ active_channel.topic }}</span>
@@ -182,7 +182,7 @@
             <!-- Acciones de cabecera: Llamada, Videollamada, Pin, Drawer Perfil, Buscador -->
             <div class="header-actions">
                 {% if not is_direct and is_channel_manager %}
-                    <button type="button" class="btn-badge-action" title="Administrar Miembros y Encargados del Canal" onclick="openManageChannelModal('{{ active_channel.id }}')" style="background: rgba(88, 101, 242, 0.2); border: 1px solid #5865f2; color: #f2f3f5; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                    <button type="button" class="btn-badge-action" title="Administrar Miembros y Administradores del Canal" onclick="openManageChannelModal('{{ active_channel.id }}')" style="background: rgba(88, 101, 242, 0.2); border: 1px solid #5865f2; color: #f2f3f5; cursor: pointer; display: flex; align-items: center; gap: 6px;">
                         👥 Gestionar Canal 👑
                     </button>
                 {% endif %}
@@ -911,11 +911,11 @@
             </div>
 
             <div class="form-group">
-                <label class="form-label">👑 Encargado Principal del Canal (Admin de Grupo)</label>
+                <label class="form-label">👑 Administrador Principal del Canal (Admin de Grupo)</label>
                 <select id="newChannelManagerSelect" class="form-control">
                     <option value="">Cargando usuarios...</option>
                 </select>
-                <small style="color: var(--text-muted); font-size: 11.5px; margin-top: 4px; display: block;">Tendrá permisos para agregar/quitar miembros y gestionar el canal.</small>
+                <small style="color: var(--text-muted); font-size: 11.5px; margin-top: 4px; display: block;">Tendrá permisos para agregar/quitar miembros y administrar el canal.</small>
             </div>
 
             <div class="form-group">
@@ -942,7 +942,7 @@
         <div class="modal-header">
             <div>
                 <h3 class="modal-title" id="manageChannelModalTitle">👥 Administrar Grupo / Canal</h3>
-                <div style="font-size: 12px; color: var(--text-muted);" id="manageChannelModalSubtitle">Gestión de participantes y encargados</div>
+                <div style="font-size: 12px; color: var(--text-muted);" id="manageChannelModalSubtitle">Gestión de participantes y administradores</div>
             </div>
             <button class="modal-close" onclick="closeManageChannelModal()">✕</button>
         </div>

@@ -245,7 +245,7 @@ def manage_channel_api(request, channel_id):
     """
     channel = get_object_or_404(Channel, id=channel_id)
     if not channel.can_manage(request.user):
-        return JsonResponse({'status': 'error', 'message': 'No tienes permisos de encargado en este canal.'}, status=403)
+        return JsonResponse({'status': 'error', 'message': 'No tienes permisos de administrador en este canal.'}, status=403)
 
     if request.method == 'GET':
         # Lista de miembros actuales

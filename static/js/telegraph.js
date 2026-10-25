@@ -1035,7 +1035,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (res.ok) {
                 const data = await res.json();
                 document.getElementById('manageChannelModalTitle').textContent = `👥 Administrar Grupo: #${data.channel_name}`;
-                document.getElementById('manageChannelModalSubtitle').textContent = data.is_general ? 'Canal General (Todos los usuarios)' : 'Canal Privado con Control de Encargados';
+                document.getElementById('manageChannelModalSubtitle').textContent = data.is_general ? 'Canal General (Todos los usuarios)' : 'Canal Privado con Control de Administradores';
                 document.getElementById('manageChannelMembersCount').textContent = `Participantes (${data.members.length})`;
                 document.getElementById('manageChannelTopicInput').value = data.topic || '';
 
@@ -1053,7 +1053,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <div>
                                     <div style="font-size: 13.5px; font-weight: 600; color: #f2f3f5; display: flex; align-items: center; gap: 6px;">
                                         <span>${m.display_name}</span>
-                                        ${m.is_manager ? `<span style="background: rgba(240,178,50,0.2); border: 1px solid #f0b232; color: #f0b232; font-size: 10.5px; padding: 1px 5px; border-radius: 3px;">👑 Encargado</span>` : ''}
+                                        ${m.is_manager ? `<span style="background: rgba(240,178,50,0.2); border: 1px solid #f0b232; color: #f0b232; font-size: 10.5px; padding: 1px 5px; border-radius: 3px;">👑 Administrador</span>` : ''}
                                     </div>
                                     <div style="font-size: 11.5px; color: var(--text-muted);">@${m.username}</div>
                                 </div>
@@ -1061,7 +1061,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div style="display: flex; gap: 6px; align-items: center;">
                                 ${!data.is_general ? `
                                     <button type="button" class="btn-secondary" style="font-size: 11px; padding: 4px 8px;" onclick="submitChannelToggleManager(${m.id})">
-                                        ${m.is_manager ? 'Degradar' : '👑 Hacer Encargado'}
+                                        ${m.is_manager ? 'Degradar a Miembro' : '👑 Hacer Administrador'}
                                     </button>
                                     ${!m.is_creator ? `
                                         <button type="button" class="btn-danger" style="font-size: 11px; padding: 4px 8px; background: rgba(242,63,67,0.15); border: 1px solid #f23f43; color: #ff7b72; border-radius: 4px; cursor: pointer;" onclick="submitChannelRemoveMember(${m.id}, '${m.username}')">
