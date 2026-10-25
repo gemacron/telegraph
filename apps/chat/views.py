@@ -342,24 +342,30 @@ def upload_attachment_api(request):
 
     return JsonResponse({'status': 'success', 'url': attachment.file.url})
 
-# Vistas de autenticación local sin dependencias externas
+# Vistas de autenticación y doble factor (2FA) TOTP
 def login_view(request):
     if request.user.is_authenticated:
         return redirect('index')
 
     error = None
     if request.method == 'POST':
-        u = request.POST.get('username')
-        p = request.POST.get('password')
+        u = request.POST.get('username', '').strip()
+        p = request.POST.get('password', '').strip()
         user = authenticate(request, username=u, password=p)
         if user:
+            profile, _ = UserProfile.objects.get_or_create(user=user)
+            if profile.two_factor_enabled:
+                # Usuario tiene 2FA habilitado: requerir código TOTP
+                request.session['2fa_pending_user_id'] = user.id
+                return redirect('login_2fa')
+
             login(request, user)
             AuditService.log(
                 event_type='AUTH_LOGIN_SUCCESS',
                 actor=user,
                 severity='INFO',
                 request=request,
-                details={'username': user.username}
+                details={'username': user.username, '2fa_used': False}
             )
             return redirect('index')
         else:
@@ -373,6 +379,65 @@ def login_view(request):
             error = "Credenciales incorrectas."
 
     return render(request, 'auth/login.html', {'error': error})
+
+def login_2fa_view(request):
+    if request.user.is_authenticated:
+        return redirect('index')
+
+    pending_user_id = request.session.get('2fa_pending_user_id')
+    if not pending_user_id:
+        return redirect('login')
+
+    user = get_object_or_404(User, id=pending_user_id)
+    profile = user.profile
+    error = None
+
+    if request.method == 'POST':
+        token = request.POST.get('token', '').strip()
+        backup_code = request.POST.get('backup_code', '').strip()
+
+        is_valid = False
+        method_used = None
+
+        if token:
+            if profile.verify_totp(token):
+                is_valid = True
+                method_used = 'totp'
+            else:
+                error = "El código de 6 dígitos es incorrecto o ha expirado."
+        elif backup_code:
+            if profile.verify_and_consume_backup_code(backup_code):
+                is_valid = True
+                method_used = 'backup_code'
+            else:
+                error = "El código de respaldo es inválido o ya fue utilizado."
+        else:
+            error = "Ingresa el código de 6 dígitos o un código de respaldo."
+
+        if is_valid:
+            login(request, user)
+            request.session.pop('2fa_pending_user_id', None)
+            AuditService.log(
+                event_type='AUTH_LOGIN_SUCCESS',
+                actor=user,
+                severity='INFO',
+                request=request,
+                details={'username': user.username, '2fa_used': True, '2fa_method': method_used}
+            )
+            return redirect('index')
+        else:
+            AuditService.log(
+                event_type='AUTH_2FA_FAILED',
+                actor=user,
+                severity='WARNING',
+                request=request,
+                details={'username': user.username}
+            )
+
+    return render(request, 'auth/login_2fa.html', {
+        'username': user.username,
+        'error': error,
+    })
 
 def register_view(request):
     if request.user.is_authenticated:
@@ -394,14 +459,128 @@ def register_view(request):
             error = "El nombre de usuario ya está registrado."
         else:
             user = User.objects.create_user(username=u, password=p)
-            login(request, user)
-            # Agregar al workspace principal
+            profile, _ = UserProfile.objects.get_or_create(user=user)
+            profile.generate_totp_secret(force=True)
+
             ws = Workspace.objects.first()
             if ws:
                 ws.members.add(user)
-            return redirect('index')
+
+            request.session['register_pending_user_id'] = user.id
+            return redirect('register_2fa')
 
     return render(request, 'auth/register.html', {'error': error})
+
+def register_2fa_view(request):
+    if request.user.is_authenticated:
+        return redirect('index')
+
+    pending_user_id = request.session.get('register_pending_user_id')
+    if not pending_user_id:
+        return redirect('register')
+
+    user = get_object_or_404(User, id=pending_user_id)
+    profile = user.profile
+    error = None
+
+    if request.method == 'POST':
+        token = request.POST.get('token', '').strip()
+        if not token:
+            error = "Ingresa el código de 6 dígitos mostrado en tu aplicación."
+        elif profile.verify_totp(token):
+            profile.two_factor_enabled = True
+            backup_codes = profile.generate_backup_codes(count=8)
+            profile.save()
+
+            login(request, user)
+            request.session.pop('register_pending_user_id', None)
+
+            AuditService.log(
+                event_type='AUTH_2FA_ENABLED',
+                actor=user,
+                severity='INFO',
+                request=request,
+                details={'username': user.username, 'action': 'registered_with_2fa'}
+            )
+            return render(request, 'auth/register_backup_codes.html', {
+                'backup_codes': backup_codes,
+                'username': user.username,
+                'is_profile_setup': False
+            })
+        else:
+            error = "Código de 6 dígitos inválido. Verifica la hora de tu dispositivo e inténtalo de nuevo."
+
+    return render(request, 'auth/register_2fa.html', {
+        'username': user.username,
+        'qr_b64': profile.get_qr_code_base64(),
+        'totp_secret': profile.totp_secret,
+        'totp_uri': profile.get_totp_uri(),
+        'error': error,
+        'is_profile_setup': False
+    })
+
+@login_required
+def setup_2fa_view(request):
+    profile = request.user.profile
+    error = None
+
+    if request.method == 'POST':
+        token = request.POST.get('token', '').strip()
+        if not token:
+            error = "Por favor ingresa el código de 6 dígitos."
+        elif profile.verify_totp(token):
+            profile.two_factor_enabled = True
+            backup_codes = profile.generate_backup_codes(count=8)
+            profile.save()
+
+            AuditService.log(
+                event_type='AUTH_2FA_ENABLED',
+                actor=request.user,
+                severity='INFO',
+                request=request,
+                details={'username': request.user.username}
+            )
+            return render(request, 'auth/register_backup_codes.html', {
+                'backup_codes': backup_codes,
+                'username': request.user.username,
+                'is_profile_setup': True
+            })
+        else:
+            error = "Código incorrecto. Verifica el token en tu aplicación e intenta nuevamente."
+
+    if not profile.totp_secret:
+        profile.generate_totp_secret(force=True)
+
+    return render(request, 'auth/register_2fa.html', {
+        'username': request.user.username,
+        'qr_b64': profile.get_qr_code_base64(),
+        'totp_secret': profile.totp_secret,
+        'totp_uri': profile.get_totp_uri(),
+        'error': error,
+        'is_profile_setup': True
+    })
+
+@login_required
+@require_POST
+def disable_2fa_view(request):
+    pwd = request.POST.get('password', '').strip()
+    if not request.user.check_password(pwd):
+        return JsonResponse({'status': 'error', 'message': 'Contraseña incorrecta.'}, status=400)
+
+    profile = request.user.profile
+    profile.two_factor_enabled = False
+    profile.totp_secret = ""
+    profile.backup_codes = []
+    profile.save()
+
+    AuditService.log(
+        event_type='AUTH_2FA_DISABLED',
+        actor=request.user,
+        severity='WARNING',
+        request=request,
+        details={'username': request.user.username}
+    )
+    return JsonResponse({'status': 'success', 'message': 'Doble factor desactivado exitosamente.'})
 
 def logout_view(request):
     logout(request)

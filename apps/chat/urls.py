@@ -14,6 +14,10 @@ urlpatterns = [
     path('api/stickers/', views.list_stickers_api, name='list_stickers'),
     path('api/stickers/upload/', views.upload_sticker_api, name='upload_sticker'),
     path('login/', views.login_view, name='login'),
+    path('login/2fa/', views.login_2fa_view, name='login_2fa'),
     path('register/', views.register_view, name='register'),
+    path('register/2fa/', views.register_2fa_view, name='register_2fa'),
     path('logout/', views.logout_view, name='logout'),
+    path('profile/2fa/setup/', views.setup_2fa_view, name='setup_2fa'),
+    path('profile/2fa/disable/', views.disable_2fa_view, name='disable_2fa'),
 ]

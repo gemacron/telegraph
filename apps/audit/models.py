@@ -28,6 +28,9 @@ class SecurityAuditLog(models.Model):
         # Autenticación y Cuentas
         ('AUTH_LOGIN_SUCCESS', 'Inicio de Sesión Exitoso'),
         ('AUTH_LOGIN_FAILED', 'Fallo de Autenticación (Posible Fuerza Bruta)'),
+        ('AUTH_2FA_ENABLED', 'Activación de Doble Factor (2FA)'),
+        ('AUTH_2FA_DISABLED', 'Desactivación de Doble Factor (2FA)'),
+        ('AUTH_2FA_FAILED', 'Fallo de Verificación 2FA'),
         ('AUTH_LOGOUT', 'Cierre de Sesión'),
         ('PROFILE_UPDATED', 'Modificación de Datos de Usuario / Avatar'),
         ('PASSWORD_CHANGED', 'Cambio de Contraseña'),

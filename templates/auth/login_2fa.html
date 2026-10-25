@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+
+{% block title %}Verificación de Dos Pasos (2FA) | Telegraph{% endblock %}
+
+{% block content %}
+<div style="display: flex; height: 100vh; align-items: center; justify-content: center; background: radial-gradient(circle at center, #2b2d31 0%, #1e1f22 100%);">
+    <div style="background: #313338; width: 440px; padding: 36px; border-radius: 12px; box-shadow: 0 12px 36px rgba(0,0,0,0.6); border: 1px solid #3f4147;">
+        <div style="text-align: center; margin-bottom: 24px;">
+            <div style="font-size: 40px; margin-bottom: 6px;">🔐</div>
+            <h2 style="font-size: 22px; font-weight: 700; color: #f2f3f5;">Verificación de Dos Pasos</h2>
+            <p style="color: #949ba4; font-size: 13.5px; margin-top: 4px;">
+                Hola <strong>{{ username }}</strong>, introduce el código de tu aplicación de autenticación (Google Authenticator, Authy, etc.).
+            </p>
+        </div>
+
+        {% if error %}
+            <div style="background: rgba(242, 63, 67, 0.2); border: 1px solid #f23f43; color: #ff7b72; padding: 10px 14px; border-radius: 6px; font-size: 13px; margin-bottom: 16px;">
+                ⚠️ {{ error }}
+            </div>
+        {% endif %}
+
+        <form method="POST" id="form-2fa">
+            {% csrf_token %}
+            
+            <div id="totp-input-container">
+                <div class="form-group">
+                    <label class="form-label" style="text-align: center; display: block; font-size: 13px;">Código de Autenticación de 6 Dígitos</label>
+                    <input type="text" name="token" id="token-input" class="form-control" autofocus 
+                           placeholder="000 000" maxlength="7" autocomplete="one-time-code"
+                           style="text-align: center; font-size: 24px; font-family: monospace; letter-spacing: 6px; padding: 10px; font-weight: 700;">
+                </div>
+            </div>
+
+            <div id="backup-input-container" style="display: none;">
+                <div class="form-group">
+                    <label class="form-label" style="text-align: center; display: block; font-size: 13px;">Código de Respaldo de Emergencia</label>
+                    <input type="text" name="backup_code" id="backup-input" class="form-control" 
+                           placeholder="XXXX-XXXX" style="text-align: center; font-size: 18px; font-family: monospace; letter-spacing: 2px; padding: 10px;">
+                    <small style="display: block; text-align: center; color: #949ba4; margin-top: 6px; font-size: 12px;">
+                        Los códigos de respaldo son de un solo uso.
+                    </small>
+                </div>
+            </div>
+
+            <button type="submit" class="btn-primary" style="width: 100%; padding: 12px; font-size: 15px; margin-top: 12px;">
+                Verificar y Acceder
+            </button>
+        </form>
+
+        <div style="margin-top: 18px; text-align: center;">
+            <button type="button" id="toggle-method-btn" onclick="toggleAuthMethod()" 
+                    style="background: transparent; border: none; color: var(--text-link); font-size: 13px; cursor: pointer; text-decoration: underline;">
+                ¿No tienes tu teléfono? Usar código de respaldo
+            </button>
+        </div>
+
+        <div style="margin-top: 24px; text-align: center; border-top: 1px solid #3f4147; padding-top: 14px;">
+            <a href="{% url 'logout' %}" style="color: #949ba4; font-size: 13px; text-decoration: none;">
+                ← Cancelar y volver al inicio de sesión
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+let useBackup = false;
+function toggleAuthMethod() {
+    useBackup = !useBackup;
+    const totpContainer = document.getElementById('totp-input-container');
+    const backupContainer = document.getElementById('backup-input-container');
+    const tokenInput = document.getElementById('token-input');
+    const backupInput = document.getElementById('backup-input');
+    const toggleBtn = document.getElementById('toggle-method-btn');
+
+    if (useBackup) {
+        totpContainer.style.display = 'none';
+        backupContainer.style.display = 'block';
+        tokenInput.value = '';
+        backupInput.focus();
+        toggleBtn.textContent = 'Usar código temporal de Google Authenticator';
+    } else {
+        totpContainer.style.display = 'block';
+        backupContainer.style.display = 'none';
+        backupInput.value = '';
+        tokenInput.focus();
+        toggleBtn.textContent = '¿No tienes tu teléfono? Usar código de respaldo';
+    }
+}
+</script>
+{% endblock %}

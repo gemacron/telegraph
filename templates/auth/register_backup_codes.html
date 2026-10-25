@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+
+{% block title %}Códigos de Respaldo 2FA | Telegraph{% endblock %}
+
+{% block content %}
+<div style="display: flex; min-height: 100vh; align-items: center; justify-content: center; background: radial-gradient(circle at center, #2b2d31 0%, #1e1f22 100%); padding: 30px 15px;">
+    <div style="background: #313338; width: 480px; padding: 32px; border-radius: 12px; box-shadow: 0 12px 36px rgba(0,0,0,0.6); border: 1px solid #3f4147;">
+        
+        <div style="text-align: center; margin-bottom: 20px;">
+            <div style="font-size: 38px; margin-bottom: 6px;">🎉</div>
+            <h2 style="font-size: 22px; font-weight: 700; color: #57f287;">¡Doble Factor (2FA) Activado!</h2>
+            <p style="color: #949ba4; font-size: 13.5px; margin-top: 4px;">
+                Guarda estos <strong>códigos de respaldo</strong> en un lugar seguro. Podrás usarlos si pierdes acceso a tu aplicación de autenticación.
+            </p>
+        </div>
+
+        <div style="background: rgba(235, 69, 158, 0.1); border: 1px solid rgba(235, 69, 158, 0.3); border-radius: 8px; padding: 12px; margin-bottom: 16px; font-size: 12.5px; color: #ff73fa; text-align: center;">
+            ⚠️ Cada código solo se puede utilizar <strong>una única vez</strong>.
+        </div>
+
+        <div style="background: #1e1f22; border: 1px solid #383a40; border-radius: 10px; padding: 16px; margin-bottom: 20px;">
+            <div id="backup-codes-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; text-align: center; font-family: monospace; font-size: 14px; font-weight: 700; color: #f2f3f5;">
+                {% for code in backup_codes %}
+                    <div style="background: #2b2d31; padding: 8px 10px; border-radius: 6px; border: 1px solid #404249; letter-spacing: 1px;">
+                        {{ code }}
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+            <button type="button" onclick="copyAllCodes()" class="btn-secondary" style="flex: 1; padding: 10px; font-size: 13px;">
+                📋 Copiar Todos
+            </button>
+            <button type="button" onclick="downloadCodes()" class="btn-secondary" style="flex: 1; padding: 10px; font-size: 13px;">
+                💾 Descargar .txt
+            </button>
+        </div>
+        <div id="codes-copy-msg" style="display: none; text-align: center; color: #57f287; font-size: 12px; margin-bottom: 12px;">
+            ✓ ¡Códigos copiados al portapapeles!
+        </div>
+
+        <a href="{% url 'index' %}" class="btn-primary" style="display: block; text-align: center; text-decoration: none; width: 100%; padding: 12px; font-size: 15px; box-sizing: border-box;">
+            Entrar a Telegraph →
+        </a>
+    </div>
+</div>
+
+<script>
+const rawCodes = [
+    {% for code in backup_codes %}
+        "{{ code }}",
+    {% endfor %}
+];
+
+function copyAllCodes() {
+    const text = "Códigos de Respaldo 2FA - Telegraph (Usuario: {{ username }}):\n" + rawCodes.join("\n");
+    navigator.clipboard.writeText(text).then(() => {
+        const msg = document.getElementById('codes-copy-msg');
+        msg.style.display = 'block';
+        setTimeout(() => { msg.style.display = 'none'; }, 2500);
+    });
+}
+
+function downloadCodes() {
+    const text = "Códigos de Respaldo 2FA - Telegraph (Usuario: {{ username }}):\n\n" + rawCodes.join("\n") + "\n\nGuarda este archivo en un lugar seguro y confidencial.";
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `telegraph_backup_codes_{{ username }}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+</script>
+{% endblock %}

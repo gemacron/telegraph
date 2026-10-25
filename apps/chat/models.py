@@ -21,6 +21,9 @@ class UserProfile(models.Model):
     custom_status = models.CharField(max_length=120, blank=True, default="Programando 💻")
     avatar = models.ImageField(upload_to="avatars/%Y/%m/", null=True, blank=True)
     banner_color = models.CharField(max_length=7, default="#5865f2")
+    two_factor_enabled = models.BooleanField(default=False)
+    totp_secret = models.CharField(max_length=64, blank=True, default="")
+    backup_codes = models.JSONField(default=list, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -31,6 +34,75 @@ class UserProfile(models.Model):
         if self.avatar and hasattr(self.avatar, 'url'):
             return self.avatar.url
         return None
+
+    def generate_totp_secret(self, force=False):
+        """Genera un nuevo secreto base32 para TOTP si no existe."""
+        import pyotp
+        if not self.totp_secret or force:
+            self.totp_secret = pyotp.random_base32()
+            self.save(update_fields=['totp_secret'])
+        return self.totp_secret
+
+    def get_totp_uri(self):
+        """Genera el URI estándar otpauth:// compatible con Google Authenticator."""
+        import pyotp
+        if not self.totp_secret:
+            self.generate_totp_secret()
+        totp = pyotp.TOTP(self.totp_secret)
+        return totp.provisioning_uri(
+            name=self.user.username,
+            issuer_name="Telegraph"
+        )
+
+    def get_qr_code_base64(self):
+        """Genera un código QR en base64 para incrustar directamente en la vista HTML sin llamadas externas."""
+        import qrcode
+        import io
+        import base64
+        uri = self.get_totp_uri()
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=8,
+            border=2,
+        )
+        qr.add_data(uri)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="black", back_color="white")
+        buffered = io.BytesIO()
+        img.save(buffered, format="PNG")
+        return base64.b64encode(buffered.getvalue()).decode()
+
+    def verify_totp(self, token):
+        """Verifica un token de 6 dígitos con ventana de tolerancia ±30 segundos."""
+        import pyotp
+        if not self.totp_secret or not token:
+            return False
+        clean_token = str(token).strip().replace(" ", "").replace("-", "")
+        totp = pyotp.TOTP(self.totp_secret)
+        return totp.verify(clean_token, valid_window=1)
+
+    def generate_backup_codes(self, count=8):
+        """Genera un listado de códigos de respaldo de un solo uso."""
+        import secrets
+        codes = []
+        for _ in range(count):
+            code = f"{secrets.token_hex(4).upper()}-{secrets.token_hex(4).upper()}"
+            codes.append(code)
+        self.backup_codes = codes
+        self.save(update_fields=['backup_codes'])
+        return codes
+
+    def verify_and_consume_backup_code(self, code):
+        """Valida y consume de forma segura un código de respaldo."""
+        if not code or not self.backup_codes:
+            return False
+        clean_code = str(code).strip().upper()
+        if clean_code in self.backup_codes:
+            self.backup_codes.remove(clean_code)
+            self.save(update_fields=['backup_codes'])
+            return True
+        return False
 
     def __str__(self):
         return f"Perfil de {self.user.username}"
