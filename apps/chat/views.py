@@ -49,6 +49,7 @@ def get_accessible_channels(user, workspace):
     from django.db.models import Q
     return workspace.channels.filter(
         Q(is_general=True) |
+        Q(is_private=False) |
         Q(members=user) |
         Q(managers=user)
     ).distinct().order_by('-is_general', 'name')
@@ -188,6 +189,14 @@ def create_channel_api(request):
     clean_name = re.sub(r'[^a-z0-9-_]', '', raw_name.replace(' ', '-'))[:80]
     topic = str(data.get('topic', '')).strip()[:255]
     manager_id = data.get('manager_id')
+    raw_is_private = data.get('is_private')
+    if isinstance(raw_is_private, str):
+        is_private = raw_is_private.lower() in ['true', '1', 'private']
+    elif raw_is_private is None:
+        is_private = False
+    else:
+        is_private = bool(raw_is_private)
+
     member_ids = data.get('member_ids', [])
     if isinstance(member_ids, str):
         member_ids = [m.strip() for m in member_ids.split(',') if m.strip()]
@@ -203,7 +212,8 @@ def create_channel_api(request):
         name=clean_name,
         topic=topic,
         created_by=user,
-        is_general=False
+        is_general=False,
+        is_private=is_private
     )
 
     # El creador siempre forma parte del canal
@@ -276,6 +286,7 @@ def manage_channel_api(request, channel_id):
             'channel_name': channel.name,
             'topic': channel.topic,
             'is_general': channel.is_general,
+            'is_private': channel.is_private,
             'is_creator': channel.created_by_id == request.user.id,
             'members': members_data,
             'available_users': available_data,

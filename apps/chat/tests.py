@@ -41,16 +41,28 @@ class WhatsAppStyleChannelTests(TestCase):
             workspace=self.workspace,
             name="dev-team-private",
             is_general=False,
+            is_private=True,
             created_by=self.admin_user
         )
         self.secret_channel.managers.add(self.manager_user)
         self.secret_channel.members.add(self.manager_user, self.member_user)
 
+        # Create Public Channel
+        self.public_channel = Channel.objects.create(
+            workspace=self.workspace,
+            name="public-discussion",
+            is_general=False,
+            is_private=False,
+            created_by=self.admin_user
+        )
+
     def test_channel_visibility(self):
-        """Outsider should not see private channel, and direct navigation redirects silently (no 403)"""
+        """Outsider should not see private channel, but can see public channel"""
         self.assertTrue(self.secret_channel.can_view(self.manager_user))
         self.assertTrue(self.secret_channel.can_view(self.member_user))
         self.assertFalse(self.secret_channel.can_view(self.outsider_user))
+        # Public channel is visible to outsider
+        self.assertTrue(self.public_channel.can_view(self.outsider_user))
 
         # Outsider client
         client = Client()
@@ -65,6 +77,7 @@ class WhatsAppStyleChannelTests(TestCase):
         # Verify sidebar channel list only contains general
         channels_in_sidebar = list(response.context['channels'])
         self.assertIn(self.general_channel, channels_in_sidebar)
+        self.assertIn(self.public_channel, channels_in_sidebar)
         self.assertNotIn(self.secret_channel, channels_in_sidebar)
 
     def test_manager_permissions(self):

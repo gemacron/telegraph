@@ -959,6 +959,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (createChannelModal) createChannelModal.style.display = 'none';
     };
 
+    window.toggleCreateChannelPrivacy = function(mode) {
+        const membersGroup = document.getElementById('newChannelMembersGroup');
+        const publicNotice = document.getElementById('newChannelPublicNotice');
+        if (mode === 'private') {
+            if (membersGroup) membersGroup.style.display = 'block';
+            if (publicNotice) publicNotice.style.display = 'none';
+        } else {
+            if (membersGroup) membersGroup.style.display = 'none';
+            if (publicNotice) publicNotice.style.display = 'block';
+        }
+    };
+
     window.submitCreateChannel = async function() {
         const nameInput = document.getElementById('newChannelName');
         const topicInput = document.getElementById('newChannelTopic');
@@ -969,6 +981,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const name = nameInput ? nameInput.value.trim() : '';
         const topic = topicInput ? topicInput.value.trim() : '';
         const managerId = managerSelect ? managerSelect.value : null;
+        const privacyRadio = document.querySelector('input[name="newChannelPrivacy"]:checked');
+        const isPrivate = privacyRadio ? (privacyRadio.value === 'private') : false;
 
         const memberCheckboxes = document.querySelectorAll('#newChannelMembersList input[type="checkbox"]:checked');
         const memberIds = Array.from(memberCheckboxes).map(cb => cb.value);
@@ -994,7 +1008,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     name: name,
                     topic: topic,
                     manager_id: managerId,
-                    member_ids: memberIds
+                    is_private: isPrivate,
+                    member_ids: isPrivate ? memberIds : []
                 })
             });
 

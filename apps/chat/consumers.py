@@ -143,7 +143,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         sticker_lottie_json = data.get('sticker_lottie_json', '')
 
         # Manejo de Señalización WebRTC para Llamadas de Voz, Videollamadas y Compartir Pantalla
-        if msg_type.startswith('webrtc_') or msg_type in ['call_request', 'call_response', 'call_hangup', 'voice_speaking', 'join_call', 'call_peer_state']:
+        if msg_type.startswith('webrtc_') or msg_type in ['call_request', 'call_response', 'call_hangup', 'voice_speaking', 'join_call', 'call_peer_state', 'channel_call_broadcast']:
             sender_display, sender_avatar = await self.get_user_profile_info()
             target = data.get('target', '')
             payload = {

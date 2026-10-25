@@ -118,7 +118,7 @@
             </div>
             {% for ch in channels %}
                 <a href="{% url 'channel_view' ch.id %}" class="channel-item {% if not is_direct and ch.id == active_channel.id %}active{% endif %}">
-                    <span class="channel-hash">{% if ch.is_general %}#{% else %}🔒{% endif %}</span>
+                    <span class="channel-hash">{% if ch.is_general or not ch.is_private %}#{% else %}🔒{% endif %}</span>
                     <span>{{ ch.name }}</span>
                 </a>
             {% empty %}
@@ -168,7 +168,7 @@
                     </div>
                     <span class="header-title">{{ other_user.profile.get_display_name|default:other_user.username }}</span>
                 {% else %}
-                    <span class="channel-hash">{% if active_channel.is_general %}#{% else %}🔒{% endif %}</span>
+                    <span class="channel-hash">{% if active_channel.is_general or not active_channel.is_private %}#{% else %}🔒{% endif %}</span>
                     <span class="header-title">{{ active_channel.name }}</span>
                     {% if is_channel_manager %}
                         <span style="background: rgba(240, 178, 50, 0.2); border: 1px solid #f0b232; color: #f0b232; font-size: 11px; padding: 2px 7px; border-radius: 4px; margin-left: 6px; font-weight: 600;">👑 Eres Administrador</span>
@@ -186,8 +186,8 @@
                         👥 Gestionar Canal 👑
                     </button>
                 {% endif %}
-                <button type="button" class="btn-icon-header" title="Iniciar llamada de voz segura" onclick="startCall('audio')">📞</button>
-                <button type="button" class="btn-icon-header" title="Iniciar videollamada segura" onclick="startCall('video')">📹</button>
+                <button type="button" class="btn-icon-header" title="Iniciar o unirse a llamada de voz en este canal" onclick="startCall('audio')">📞</button>
+                <button type="button" class="btn-icon-header" title="Iniciar o unirse a videollamada en este canal" onclick="startCall('video')">📹</button>
                 <button type="button" class="btn-icon-header" title="Mensajes fijados" onclick="alert('No hay mensajes fijados en esta conversación.')">📌</button>
                 <button type="button" class="btn-icon-header active" id="btnToggleProfileDrawer" title="Mostrar/Ocultar Perfil de Usuario" onclick="toggleProfileDrawer()">👤</button>
 
@@ -202,6 +202,21 @@
                 </a>
             </div>
         </header>
+
+        <!-- Banner de Llamada de Voz / Video Activa en el Canal -->
+        <div class="active-channel-call-banner" id="activeChannelCallBanner" style="display: none; background: rgba(35, 165, 89, 0.18); border-bottom: 1px solid rgba(35, 165, 89, 0.45); padding: 9px 18px; align-items: center; justify-content: space-between; z-index: 10;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span class="call-status-pulse" style="width: 10px; height: 10px; border-radius: 50%; background: #23a559; box-shadow: 0 0 8px #23a559; display: inline-block;"></span>
+                <span style="font-size: 13.5px; font-weight: 600; color: #57f287;" id="activeChannelCallBannerText">
+                    🟢 Hay una llamada activa en este canal
+                </span>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button type="button" class="btn-primary" onclick="startCall('audio')" style="background: #23a559; border: none; padding: 5px 14px; font-size: 12.5px; border-radius: 4px; cursor: pointer; font-weight: 600; color: #fff;">
+                    🎧 Unirse a la Llamada
+                </button>
+            </div>
+        </div>
 
         <!-- Overlay de Llamada de Voz / Videollamada Activa (Estilo Telegraph) -->
         <div class="active-call-overlay" id="activeCallOverlay">
@@ -911,19 +926,43 @@
             </div>
 
             <div class="form-group">
+                <label class="form-label">Tipo de Acceso y Privacidad</label>
+                <div style="display: flex; gap: 10px; margin-top: 4px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; background: #1e1f22; padding: 10px 12px; border-radius: 6px; border: 1px solid #383a40; flex: 1;">
+                        <input type="radio" name="newChannelPrivacy" value="public" checked onchange="toggleCreateChannelPrivacy(this.value)">
+                        <div>
+                            <div style="font-size: 13px; font-weight: 600; color: #fff;">🌐 Canal Público</div>
+                            <div style="font-size: 11px; color: var(--text-muted);">Visible para todos en el workspace</div>
+                        </div>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; background: #1e1f22; padding: 10px 12px; border-radius: 6px; border: 1px solid #383a40; flex: 1;">
+                        <input type="radio" name="newChannelPrivacy" value="private" onchange="toggleCreateChannelPrivacy(this.value)">
+                        <div>
+                            <div style="font-size: 13px; font-weight: 600; color: #fff;">🔒 Canal Privado</div>
+                            <div style="font-size: 11px; color: var(--text-muted);">Solo miembros asignados (WhatsApp)</div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-group">
                 <label class="form-label">👑 Administrador Principal del Canal (Admin de Grupo)</label>
                 <select id="newChannelManagerSelect" class="form-control">
                     <option value="">Cargando usuarios...</option>
                 </select>
-                <small style="color: var(--text-muted); font-size: 11.5px; margin-top: 4px; display: block;">Tendrá permisos para agregar/quitar miembros y administrar el canal.</small>
+                <small style="color: var(--text-muted); font-size: 11.5px; margin-top: 4px; display: block;">Tendrá permisos para moderar, cambiar tema y administrar el canal.</small>
             </div>
 
-            <div class="form-group">
+            <div class="form-group" id="newChannelMembersGroup" style="display: none;">
                 <label class="form-label">👥 Miembros Asignados (Acceso Exclusivo)</label>
                 <div id="newChannelMembersList" style="max-height: 180px; overflow-y: auto; background: #1e1f22; border: 1px solid #383a40; border-radius: 6px; padding: 10px;">
                     <div style="color: var(--text-muted); font-size: 12px; text-align: center;">Cargando lista de usuarios...</div>
                 </div>
                 <small style="color: var(--text-muted); font-size: 11.5px; margin-top: 4px; display: block;">Solo los usuarios marcados podrán ver y participar en este canal.</small>
+            </div>
+
+            <div id="newChannelPublicNotice" style="background: rgba(88, 101, 242, 0.1); border: 1px solid rgba(88, 101, 242, 0.3); border-radius: 6px; padding: 10px; margin-bottom: 14px; font-size: 12px; color: #dbdee1;">
+                ℹ️ <strong>Canal Público:</strong> Todos los miembros del workspace tendrán acceso automático y podrán enviar mensajes y unirse a llamadas.
             </div>
 
             <div id="createChannelError" style="display: none; background: rgba(242, 63, 67, 0.2); border: 1px solid #f23f43; color: #ff7b72; padding: 8px 12px; border-radius: 6px; font-size: 12.5px; margin-bottom: 12px;"></div>
