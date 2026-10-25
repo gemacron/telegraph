@@ -3,6 +3,14 @@ echo ==========================================================
 echo       Iniciando Telegraph con Podman y PostgreSQL
 echo ==========================================================
 
+set "PATH=%LOCALAPPDATA%\Programs\Podman;%CD%\.venv\Scripts;%PATH%"
+
+if exist "%CD%\.venv\Scripts\podman-compose.exe" (
+    echo [+] Utilizando podman-compose del entorno...
+    "%CD%\.venv\Scripts\podman-compose.exe" --podman-path "%LOCALAPPDATA%\Programs\Podman\podman.exe" -f compose.yaml up --build -d
+    goto finish
+)
+
 where podman-compose >nul 2>nul
 if %ERRORLEVEL% EQU 0 (
     echo [+] Utilizando podman-compose...
@@ -12,7 +20,7 @@ if %ERRORLEVEL% EQU 0 (
 
 where podman >nul 2>nul
 if %ERRORLEVEL% EQU 0 (
-    echo [+] Utilizando podman compose nativo...
+    echo [+] Utilizando podman compose...
     podman compose up --build -d
     goto finish
 )
