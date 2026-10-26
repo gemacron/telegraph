@@ -108,13 +108,20 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 )
 
     @database_sync_to_async
-    def save_chat_message(self, content, is_code=False, language="", is_sticker=False, sticker_image_url="", is_animated_sticker=False, sticker_animation_type="", sticker_lottie_json=""):
+    def save_chat_message(self, content, is_code=False, language="", is_sticker=False, sticker_image_url="", is_animated_sticker=False, sticker_animation_type="", sticker_lottie_json="", reply_to_id=None):
         """Persiste el mensaje de manera asíncrona en PostgreSQL y renderiza Pygments si aplica."""
         channel = Channel.objects.filter(id=self.room_id).first()
         direct_conv = None if channel else DirectConversation.objects.filter(id=self.room_id).first()
 
         if not channel and not direct_conv:
             return None
+
+        reply_to_msg = None
+        if reply_to_id:
+            try:
+                reply_to_msg = Message.objects.filter(id=reply_to_id).select_related('author', 'author__profile').first()
+            except Exception:
+                reply_to_msg = None
 
         msg = Message(
             channel=channel,
@@ -127,7 +134,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
             sticker_image_url=sticker_image_url or "",
             is_animated_sticker=is_animated_sticker,
             sticker_animation_type=sticker_animation_type or "",
-            sticker_lottie_json=sticker_lottie_json or ""
+            sticker_lottie_json=sticker_lottie_json or "",
+            reply_to=reply_to_msg
         )
         msg.save()
         
@@ -136,6 +144,26 @@ class ChatConsumer(AsyncWebsocketConsumer):
         if hasattr(self.user, 'profile'):
             avatar_url = self.user.profile.get_avatar_url() or ""
             display_name = self.user.profile.get_display_name()
+
+        reply_to_data = None
+        if msg.reply_to:
+            r_author_name = msg.reply_to.author.username
+            r_display = r_author_name
+            if hasattr(msg.reply_to.author, 'profile'):
+                r_display = msg.reply_to.author.profile.get_display_name() or r_author_name
+            snippet = msg.reply_to.content or ""
+            if msg.reply_to.is_sticker:
+                snippet = "🎨 Sticker"
+            elif msg.reply_to.is_code_snippet:
+                snippet = f"💻 Código ({msg.reply_to.code_language or 'snippet'})"
+            if len(snippet) > 80:
+                snippet = snippet[:80] + "..."
+            reply_to_data = {
+                "id": str(msg.reply_to.id),
+                "author": r_author_name,
+                "display_name": r_display,
+                "content_snippet": snippet
+            }
 
         return {
             "id": str(msg.id),
@@ -151,8 +179,45 @@ class ChatConsumer(AsyncWebsocketConsumer):
             "is_animated_sticker": msg.is_animated_sticker,
             "sticker_animation_type": msg.sticker_animation_type,
             "sticker_lottie_json": msg.sticker_lottie_json,
+            "reply_to": reply_to_data,
+            "reactions": [],
             "created_at": msg.created_at.strftime("%H:%M")
         }
+
+    @database_sync_to_async
+    def toggle_reaction_db(self, message_id, emoji):
+        from apps.chat.models import MessageReaction
+        msg = Message.objects.filter(id=message_id).first()
+        if not msg:
+            return None
+        existing = MessageReaction.objects.filter(message=msg, user=self.user, emoji=emoji).first()
+        if existing:
+            existing.delete()
+            action = "removed"
+        else:
+            MessageReaction.objects.create(message=msg, user=self.user, emoji=emoji)
+            action = "added"
+        
+        # Devolver resumen de reacciones de este mensaje
+        summary = msg.get_grouped_reactions(current_user=self.user)
+        return {
+            "message_id": str(msg.id),
+            "emoji": emoji,
+            "action": action,
+            "summary": summary
+        }
+
+    @database_sync_to_async
+    def delete_message_db(self, message_id):
+        msg = Message.objects.filter(id=message_id).first()
+        if not msg:
+            return False
+        # Autor o Admin
+        is_admin = self.user.is_superuser or self.user.is_staff or (hasattr(self.user, 'profile') and self.user.profile.is_workspace_admin())
+        if msg.author_id == self.user.id or is_admin:
+            msg.delete()
+            return True
+        return False
 
     @database_sync_to_async
     def log_security_audit(self, event_type, severity, details):
@@ -203,6 +268,39 @@ class ChatConsumer(AsyncWebsocketConsumer):
         is_animated_sticker = bool(data.get('is_animated_sticker', False))
         sticker_animation_type = data.get('sticker_animation_type', '')
         sticker_lottie_json = data.get('sticker_lottie_json', '')
+
+        reply_to_id = data.get('reply_to_id')
+
+        # Manejo de Reacciones a Mensajes (toggle emoji)
+        if msg_type == 'toggle_reaction':
+            message_id = data.get('message_id')
+            emoji = data.get('emoji')
+            if message_id and emoji:
+                reaction_result = await self.toggle_reaction_db(message_id, emoji)
+                if reaction_result:
+                    await self.channel_layer.group_send(
+                        self.room_group_name,
+                        {
+                            'type': 'reaction_broadcast',
+                            'payload': reaction_result
+                        }
+                    )
+            return
+
+        # Eliminación de Mensaje (autor o admin)
+        if msg_type == 'delete_message':
+            message_id = data.get('message_id')
+            if message_id:
+                deleted = await self.delete_message_db(message_id)
+                if deleted:
+                    await self.channel_layer.group_send(
+                        self.room_group_name,
+                        {
+                            'type': 'message_deleted_broadcast',
+                            'payload': {'message_id': message_id}
+                        }
+                    )
+            return
 
         # Cambio manual o automático de estado de disponibilidad (online, idle, dnd, offline)
         if msg_type == 'set_presence':
@@ -270,7 +368,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 sticker_image_url=sticker_image_url,
                 is_animated_sticker=is_animated_sticker,
                 sticker_animation_type=sticker_animation_type,
-                sticker_lottie_json=sticker_lottie_json
+                sticker_lottie_json=sticker_lottie_json,
+                reply_to_id=reply_to_id
             )
             if saved_msg:
                 await self.channel_layer.group_send(
@@ -307,7 +406,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             return
 
         # 2. Persistencia en base de datos PostgreSQL
-        saved_msg = await self.save_chat_message(content, is_code=is_code, language=language)
+        saved_msg = await self.save_chat_message(content, is_code=is_code, language=language, reply_to_id=reply_to_id)
         if not saved_msg:
             return
 
@@ -319,6 +418,20 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 'payload': saved_msg
             }
         )
+
+    async def reaction_broadcast(self, event):
+        """Difusión de actualización de reacciones a un mensaje."""
+        await self.send(text_data=json.dumps({
+            'type': 'reaction_update',
+            **event['payload']
+        }))
+
+    async def message_deleted_broadcast(self, event):
+        """Difusión de mensaje eliminado."""
+        await self.send(text_data=json.dumps({
+            'type': 'message_deleted',
+            **event['payload']
+        }))
 
     async def chat_message(self, event):
         await self.send(text_data=json.dumps({

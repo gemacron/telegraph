@@ -97,8 +97,25 @@ def channel_view(request, channel_id):
         return redirect('index')
 
     channels = get_accessible_channels(request.user, workspace)
-    direct_conversations = request.user.direct_conversations.all()
-    messages = channel.messages.select_related('author').prefetch_related('attachments').order_by('created_at')[:50]
+    from django.db.models import Q
+    user_workspaces = Workspace.objects.filter(Q(members=request.user) | Q(owner=request.user)).distinct().order_by('name')
+    if request.user.is_superuser:
+        user_workspaces = Workspace.objects.all().distinct().order_by('name')
+    if not user_workspaces.exists():
+        first_ws = Workspace.objects.first()
+        if first_ws:
+            first_ws.members.add(request.user)
+            user_workspaces = Workspace.objects.filter(id=first_ws.id)
+
+    messages = channel.messages.select_related(
+        'author', 'author__profile', 
+        'reply_to', 'reply_to__author', 'reply_to__author__profile'
+    ).prefetch_related(
+        'attachments', 'reactions', 'reactions__user'
+    ).order_by('created_at')[:50]
+    
+    for msg in messages:
+        msg.grouped_reactions = msg.get_grouped_reactions(request.user)
     
     active_secrets = channel.ephemeral_secrets.filter(
         is_destroyed=False,
@@ -112,7 +129,6 @@ def channel_view(request, channel_id):
     if channel.is_general:
         members_qs = workspace.members.select_related('profile').all()
     else:
-        from django.db.models import Q
         members_qs = User.objects.filter(Q(channel_memberships=channel) | Q(managed_channels=channel)).distinct().select_related('profile')
 
     user_status_map = {}
@@ -138,6 +154,7 @@ def channel_view(request, channel_id):
 
     context = {
         'workspace': workspace,
+        'user_workspaces': user_workspaces,
         'active_channel': channel,
         'channels': channels,
         'direct_conversations': direct_conversations,
@@ -165,8 +182,24 @@ def dm_view(request, conversation_id):
     workspace = Workspace.objects.first()
     channels = get_accessible_channels(request.user, workspace)
 
+    from django.db.models import Q
+    user_workspaces = Workspace.objects.filter(Q(members=request.user) | Q(owner=request.user)).distinct().order_by('name')
+    if request.user.is_superuser:
+        user_workspaces = Workspace.objects.all().distinct().order_by('name')
+    if not user_workspaces.exists() and workspace:
+        workspace.members.add(request.user)
+        user_workspaces = Workspace.objects.filter(id=workspace.id)
+
     direct_conversations = request.user.direct_conversations.all()
-    messages = conversation.messages.select_related('author').prefetch_related('attachments').order_by('created_at')[:50]
+    messages = conversation.messages.select_related(
+        'author', 'author__profile', 
+        'reply_to', 'reply_to__author', 'reply_to__author__profile'
+    ).prefetch_related(
+        'attachments', 'reactions', 'reactions__user'
+    ).order_by('created_at')[:50]
+    
+    for msg in messages:
+        msg.grouped_reactions = msg.get_grouped_reactions(request.user)
     
     active_secrets = conversation.ephemeral_secrets.filter(
         is_destroyed=False,
@@ -197,6 +230,7 @@ def dm_view(request, conversation_id):
 
     context = {
         'workspace': workspace,
+        'user_workspaces': user_workspaces,
         'active_conversation': conversation,
         'other_user': other_user,
         'other_status': other_status,
@@ -215,6 +249,141 @@ def dm_view(request, conversation_id):
         'is_workspace_admin': is_workspace_admin,
     }
     return render(request, 'chat/telegraph_app.html', context)
+
+@login_required
+@require_POST
+def create_workspace_api(request):
+    """Crea un nuevo espacio de trabajo y genera su canal general automáticamente."""
+    try:
+        data = json.loads(request.body.decode('utf-8')) if request.body else request.POST
+    except Exception:
+        data = request.POST
+
+    name = str(data.get('name', '')).strip()
+    description = str(data.get('description', '')).strip()
+    if not name:
+        return JsonResponse({'status': 'error', 'message': 'El nombre del espacio de trabajo es requerido.'}, status=400)
+
+    from django.utils.text import slugify
+    base_slug = slugify(name)
+    if not base_slug:
+        base_slug = f"workspace-{uuid.uuid4().hex[:6]}"
+    slug = base_slug
+    counter = 1
+    while Workspace.objects.filter(slug=slug).exists():
+        slug = f"{base_slug}-{counter}"
+        counter += 1
+
+    ws = Workspace.objects.create(
+        name=name,
+        slug=slug,
+        description=description,
+        owner=request.user
+    )
+    ws.members.add(request.user)
+
+    # Crear canal #general por defecto
+    gen_ch = Channel.objects.create(
+        workspace=ws,
+        name="general",
+        topic=f"Conversación general de {name}",
+        is_general=True,
+        created_by=request.user
+    )
+    gen_ch.managers.add(request.user)
+    gen_ch.members.add(request.user)
+
+    return JsonResponse({
+        'status': 'success',
+        'workspace_id': str(ws.id),
+        'name': ws.name,
+        'channel_id': str(gen_ch.id),
+        'redirect_url': f"/channels/{gen_ch.id}/"
+    })
+
+@login_required
+@require_POST
+def forward_message_api(request, message_id):
+    """Reenvía un mensaje a otro canal o conversación directa."""
+    original_msg = get_object_or_404(Message, id=message_id)
+    try:
+        data = json.loads(request.body.decode('utf-8')) if request.body else request.POST
+    except Exception:
+        data = request.POST
+
+    target_type = data.get('target_type')  # 'channel' o 'dm'
+    target_id = data.get('target_id')
+
+    if not target_id:
+        return JsonResponse({'status': 'error', 'message': 'Destino requerido.'}, status=400)
+
+    author_orig = original_msg.author.username
+    if hasattr(original_msg.author, 'profile'):
+        author_orig = original_msg.author.profile.get_display_name() or author_orig
+
+    forward_header = f"↪️ *Reenviado de {author_orig}:*\n"
+    new_content = forward_header + (original_msg.content or "")
+
+    dest_channel = None
+    dest_dm = None
+    room_group_name = None
+
+    if target_type == 'channel':
+        dest_channel = get_object_or_404(Channel, id=target_id)
+        if not dest_channel.can_view(request.user):
+            return JsonResponse({'status': 'error', 'message': 'Sin acceso a ese canal.'}, status=403)
+        room_group_name = f"chat_{dest_channel.id}"
+    else:
+        dest_dm = get_object_or_404(DirectConversation, id=target_id, participants=request.user)
+        room_group_name = f"chat_{dest_dm.id}"
+
+    new_msg = Message.objects.create(
+        channel=dest_channel,
+        direct_conversation=dest_dm,
+        author=request.user,
+        content=new_content,
+        is_code_snippet=original_msg.is_code_snippet,
+        code_language=original_msg.code_language,
+        is_sticker=original_msg.is_sticker,
+        sticker_image_url=original_msg.sticker_image_url,
+        is_animated_sticker=original_msg.is_animated_sticker,
+        sticker_animation_type=original_msg.sticker_animation_type,
+        sticker_lottie_json=original_msg.sticker_lottie_json
+    )
+
+    channel_layer = get_channel_layer()
+    if channel_layer and room_group_name:
+        sender_avatar = ""
+        sender_display = request.user.username
+        if hasattr(request.user, 'profile'):
+            sender_avatar = request.user.profile.get_avatar_url() or ""
+            sender_display = request.user.profile.get_display_name()
+        async_to_sync(channel_layer.group_send)(
+            room_group_name,
+            {
+                'type': 'chat_message',
+                'payload': {
+                    "id": str(new_msg.id),
+                    "content": new_msg.content,
+                    "sender": request.user.username,
+                    "display_name": sender_display,
+                    "avatar_url": sender_avatar,
+                    "is_code": new_msg.is_code_snippet,
+                    "language": new_msg.code_language,
+                    "formatted_code_html": new_msg.formatted_code_html,
+                    "is_sticker": new_msg.is_sticker,
+                    "sticker_image_url": new_msg.sticker_image_url,
+                    "is_animated_sticker": new_msg.is_animated_sticker,
+                    "sticker_animation_type": new_msg.sticker_animation_type,
+                    "sticker_lottie_json": new_msg.sticker_lottie_json,
+                    "reply_to": None,
+                    "reactions": [],
+                    "created_at": new_msg.created_at.strftime("%H:%M")
+                }
+            }
+        )
+
+    return JsonResponse({'status': 'success', 'message': 'Mensaje reenviado exitosamente.'})
 
 @login_required
 @require_POST

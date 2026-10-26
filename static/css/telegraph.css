@@ -3529,6 +3529,292 @@ html, body {
     to { width: 0%; }
 }
 
+/* ==========================================================================
+   TELEGRAM-STYLE QUICK ACTIONS & REPLYING
+   ========================================================================== */
+
+/* 1. Barra flotante de acciones rápidas sobre cada mensaje al hacer hover */
+.msg-quick-actions {
+    position: absolute;
+    top: -16px;
+    right: 14px;
+    display: none;
+    align-items: center;
+    gap: 3px;
+    background: rgba(30, 31, 34, 0.96);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 8px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55);
+    padding: 2px 4px;
+    z-index: 25;
+}
+
+.message-card:hover .msg-quick-actions {
+    display: flex;
+}
+
+.quick-act-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 5px;
+    background: transparent;
+    border: none;
+    font-size: 14px;
+    color: #dbdee1;
+    cursor: pointer;
+    transition: background 0.12s ease, transform 0.12s ease;
+}
+
+.quick-act-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    transform: scale(1.15);
+}
+
+/* 2. Cita / Bloque de respuesta dentro del mensaje estilo Telegram */
+.msg-quote-box {
+    display: flex;
+    align-items: stretch;
+    margin: 4px 0 7px 0;
+    background: rgba(0, 0, 0, 0.22);
+    border-radius: 6px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: background 0.14s ease, border-color 0.14s ease;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    max-width: fit-content;
+}
+
+.msg-quote-box:hover {
+    background: rgba(0, 0, 0, 0.38);
+    border-color: rgba(88, 166, 255, 0.3);
+}
+
+.msg-quote-line {
+    width: 3.5px;
+    background: #58a6ff;
+    flex-shrink: 0;
+    border-radius: 2px 0 0 2px;
+}
+
+.msg-quote-body {
+    padding: 3px 9px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    overflow: hidden;
+}
+
+.msg-quote-author {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: #58a6ff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.msg-quote-snippet {
+    font-size: 12px;
+    color: #b5bac1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 3. Banner de respuesta estilo Telegram arriba del input */
+.replying-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(22, 24, 28, 0.98);
+    border: 1px solid rgba(88, 166, 255, 0.35);
+    border-bottom: none;
+    border-radius: 12px 12px 0 0;
+    padding: 7px 14px;
+    margin-bottom: -3px;
+    position: relative;
+    z-index: 8;
+    backdrop-filter: blur(10px);
+}
+
+.replying-line {
+    width: 3.5px;
+    height: 32px;
+    background: #58a6ff;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+
+.replying-content {
+    flex: 1;
+    overflow: hidden;
+}
+
+.replying-author-label {
+    font-size: 11.5px;
+    color: #58a6ff;
+    font-weight: 600;
+}
+
+.replying-snippet-preview {
+    font-size: 12px;
+    color: #b5bac1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.replying-close-btn {
+    background: none;
+    border: none;
+    color: #949ba4;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 4px;
+    border-radius: 4px;
+    transition: color 0.12s, background 0.12s;
+}
+
+.replying-close-btn:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.12);
+}
+
+/* 4. Chips de Reacciones de Emojis */
+.msg-reactions-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 6px;
+}
+
+.msg-reaction-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 14px;
+    padding: 2px 8px;
+    font-size: 12px;
+    color: #dbdee1;
+    cursor: pointer;
+    transition: all 0.12s ease;
+    user-select: none;
+}
+
+.msg-reaction-chip:hover {
+    background: rgba(255, 255, 255, 0.14);
+    transform: scale(1.05);
+}
+
+.msg-reaction-chip.active {
+    background: rgba(88, 101, 242, 0.22);
+    border-color: #5865f2;
+    color: #ffffff;
+}
+
+.reaction-emoji {
+    font-size: 13px;
+    line-height: 1;
+}
+
+.reaction-count {
+    font-size: 11px;
+    font-weight: 600;
+}
+
+/* 5. Menú Contextual Desplegable para el Botón ••• */
+.msg-context-menu {
+    position: fixed;
+    background: #1e1f22;
+    border: 1px solid #35363c;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65);
+    padding: 6px;
+    min-width: 175px;
+    z-index: 99999;
+}
+
+.ctx-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 10px;
+    font-size: 13px;
+    color: #dbdee1;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.12s;
+}
+
+.ctx-item:hover {
+    background: #5865f2;
+    color: #fff;
+}
+
+.ctx-danger {
+    color: #fa777c;
+}
+
+.ctx-danger:hover {
+    background: #da373c;
+    color: #fff;
+}
+
+.ctx-divider {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.08);
+    margin: 4px 0;
+}
+
+/* 6. Picker Flotante de Emojis para Reacción */
+.msg-reaction-picker {
+    position: fixed;
+    background: #1e1f22;
+    border: 1px solid #35363c;
+    border-radius: 24px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65);
+    padding: 5px 10px;
+    display: flex;
+    gap: 7px;
+    z-index: 99999;
+}
+
+.rx-opt {
+    font-size: 18px;
+    cursor: pointer;
+    transition: transform 0.12s ease;
+    padding: 3px;
+    border-radius: 6px;
+}
+
+.rx-opt:hover {
+    transform: scale(1.3);
+    background: rgba(255, 255, 255, 0.12);
+}
+
+/* 7. Parpadeo suave al scrollear a un mensaje citado */
+@keyframes msgFlashHighlight {
+    0% { background-color: rgba(88, 166, 255, 0.35); }
+    100% { background-color: transparent; }
+}
+
+.message-card.highlight-flash {
+    animation: msgFlashHighlight 1.5s ease-out;
+}
+
+/* 8. Botón Crear Workspace en Sidebar */
+.server-icon.create-ws-btn:hover {
+    background: var(--accent-success) !important;
+    color: #ffffff !important;
+    border-radius: 16px !important;
+}
+
 
 
 

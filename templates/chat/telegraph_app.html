@@ -11,22 +11,24 @@
 
 {% block content %}
 <div class="app-container">
-    <!-- 1. Barra Lateral de Servidores / Workspaces -->
+    <!-- 1. Barra Lateral de Servidores / Workspaces Dinámicos -->
     <nav class="servers-sidebar" aria-label="Workspaces">
-        <div class="server-icon-wrapper active" title="{{ workspace.name|default:'Telegraph Workspace' }}">
-            <div class="server-pill"></div>
-            <a href="{% url 'index' %}" class="server-icon">
-                {% if workspace.icon %}
-                    <img src="{{ workspace.icon.url }}" alt="Icon" style="width:100%;height:100%;border-radius:inherit;object-fit:cover;">
-                {% else %}
-                    ⚡
-                {% endif %}
-            </a>
-        </div>
+        {% for ws in user_workspaces %}
+            <div class="server-icon-wrapper {% if workspace and ws.id == workspace.id and not is_direct %}active{% endif %}" title="{{ ws.name }}">
+                <div class="server-pill"></div>
+                <a href="{% url 'channel_view' ws.get_general_channel.id %}" class="server-icon" style="text-decoration: none; font-weight: 700; font-size: 14px;">
+                    {% if ws.icon %}
+                        <img src="{{ ws.icon.url }}" alt="{{ ws.name }}" style="width:100%;height:100%;border-radius:inherit;object-fit:cover;">
+                    {% else %}
+                        {{ ws.name|slice:":2"|upper }}
+                    {% endif %}
+                </a>
+            </div>
+        {% endfor %}
         <div class="server-separator"></div>
-        <div class="server-icon-wrapper" title="Nuevo Espacio de Trabajo">
+        <div class="server-icon-wrapper" title="Nuevo Espacio de Trabajo" onclick="openCreateWorkspaceModal()" style="cursor: pointer;">
             <div class="server-pill"></div>
-            <div class="server-icon" style="color: var(--accent-success); font-size: 24px;">+</div>
+            <div class="server-icon create-ws-btn" style="color: var(--accent-success); font-size: 22px;">+</div>
         </div>
     </nav>
 
@@ -414,6 +416,17 @@
                 {% endifchanged %}
 
                 <div class="message-card {% if msg.author == request.user %}msg-outgoing{% else %}msg-incoming{% endif %}" id="msg-{{ msg.id }}" data-author="{{ msg.author.username }}">
+                    <!-- Barra de Acciones Rápidas Flotante en Hover estilo Telegram -->
+                    <div class="msg-quick-actions" data-message-id="{{ msg.id }}">
+                        <button type="button" class="quick-act-btn" onclick="toggleReaction('{{ msg.id }}', '💯')" title="100">💯</button>
+                        <button type="button" class="quick-act-btn" onclick="toggleReaction('{{ msg.id }}', '👎')" title="No me gusta">👎</button>
+                        <button type="button" class="quick-act-btn" onclick="toggleReaction('{{ msg.id }}', '👍')" title="Me gusta">👍</button>
+                        <button type="button" class="quick-act-btn" onclick="openMessageEmojiPicker('{{ msg.id }}', event)" title="Más reacciones">😊</button>
+                        <button type="button" class="quick-act-btn" onclick="replyToMessage('{{ msg.id }}', '{{ msg.author.profile.get_display_name|default:msg.author.username|escapejs }}', '{% if msg.is_sticker %}🎨 Sticker{% elif msg.is_code_snippet %}💻 Código{% else %}{{ msg.content|truncatechars:65|escapejs }}{% endif %}')" title="Responder">↩️</button>
+                        <button type="button" class="quick-act-btn" onclick="openForwardModal('{{ msg.id }}')" title="Reenviar">↪️</button>
+                        <button type="button" class="quick-act-btn" onclick="openMessageContextMenu('{{ msg.id }}', event)" title="Más opciones">•••</button>
+                    </div>
+
                     <div class="msg-avatar" onclick="openUserProfileCard('{{ msg.author.username }}')" style="cursor: pointer;">
                         {% if msg.author.profile.avatar %}
                             <img src="{{ msg.author.profile.avatar.url }}" alt="Avatar" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">
@@ -435,6 +448,25 @@
                                 <span class="msg-status-check" title="Enviado">✓✓</span>
                             {% endif %}
                         </div>
+
+                        <!-- Cita / Respuesta estilo Telegram -->
+                        {% if msg.reply_to %}
+                            <div class="msg-quote-box" onclick="scrollToMessage('{{ msg.reply_to.id }}')" title="Ir al mensaje respondido">
+                                <div class="msg-quote-line"></div>
+                                <div class="msg-quote-body">
+                                    <span class="msg-quote-author">{{ msg.reply_to.author.profile.get_display_name|default:msg.reply_to.author.username }}</span>
+                                    <span class="msg-quote-snippet">
+                                        {% if msg.reply_to.is_sticker %}
+                                            🎨 Sticker
+                                        {% elif msg.reply_to.is_code_snippet %}
+                                            💻 Código ({{ msg.reply_to.code_language|default:"snippet" }})
+                                        {% else %}
+                                            {{ msg.reply_to.content|truncatechars:75 }}
+                                        {% endif %}
+                                    </span>
+                                </div>
+                            </div>
+                        {% endif %}
 
                         {% if msg.is_sticker and msg.sticker_image_url %}
                             <div class="msg-sticker-wrapper" onclick="openStickerPackModalByUrl('{{ msg.sticker_image_url }}')" title="Clic para ver el pack completo de stickers" style="cursor: pointer;">
@@ -479,6 +511,16 @@
                         {% else %}
                             <div class="msg-content">{{ msg.content|urlize }}</div>
                         {% endif %}
+
+                        <!-- Chips de Reacciones de Emojis -->
+                        <div class="msg-reactions-container" id="reactions-{{ msg.id }}">
+                            {% for gr in msg.grouped_reactions %}
+                                <button type="button" class="msg-reaction-chip {% if gr.has_reacted %}active{% endif %}" onclick="toggleReaction('{{ msg.id }}', '{{ gr.emoji }}')" title="{% for u in gr.users %}{{ u }}{% if not forloop.last %}, {% endif %}{% endfor %}">
+                                    <span class="reaction-emoji">{{ gr.emoji }}</span>
+                                    <span class="reaction-count">{{ gr.count }}</span>
+                                </button>
+                            {% endfor %}
+                        </div>
                     </div>
                 </div>
             {% empty %}
@@ -492,6 +534,18 @@
 
         <!-- Barra Inferior de Entrada de Texto Estilo Telegraph / Steam (Pill redondeado) -->
         <footer class="chat-input-area" style="position: relative;">
+            <!-- Banner de Respuesta Estilo Telegram (Encima del input) -->
+            <div class="replying-banner" id="replyingBanner" style="display: none;">
+                <div class="replying-line"></div>
+                <div class="replying-content">
+                    <div class="replying-author-label">
+                        <span>Respondiendo a </span>
+                        <strong id="replyingAuthorName">Usuario</strong>
+                    </div>
+                    <div class="replying-snippet-preview" id="replyingSnippetText">Texto del mensaje...</div>
+                </div>
+                <button type="button" class="replying-close-btn" onclick="cancelReply()" title="Cancelar respuesta">✕</button>
+            </div>
             <!-- Panel Flotante Popover Estilo Telegram (Emojis, Stickers, GIFs) -->
             <div class="tg-popover" id="telegramPicker" onclick="event.stopPropagation()">
                 <!-- 1. Header con Pestañas Telegram -->
@@ -1235,6 +1289,115 @@
             <button type="button" class="btn-primary" onclick="closeStickerPackModal()" style="font-size: 13px; padding: 6px 18px; border-radius: 8px;">Cerrar</button>
         </div>
     </div>
+</div>
+<!-- Modal: Crear Nuevo Espacio de Trabajo (Workspace) -->
+<div class="modal" id="createWorkspaceModal" style="display: none; align-items: center; justify-content: center; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 10000;">
+    <div class="modal-dialog" style="background: var(--bg-secondary); border-radius: 12px; width: 90%; max-width: 440px; border: 1px solid var(--border-color); box-shadow: 0 16px 40px rgba(0,0,0,0.6); overflow: hidden;">
+        <div style="padding: 20px 24px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 22px;">🏢</span>
+                <h3 style="margin: 0; font-size: 17px; font-weight: 700; color: #fff;">Crear Espacio de Trabajo</h3>
+            </div>
+            <button type="button" class="btn-icon" onclick="closeCreateWorkspaceModal()" style="font-size: 16px; color: var(--text-muted);">✕</button>
+        </div>
+        <form id="createWorkspaceForm" onsubmit="submitCreateWorkspace(event)" style="padding: 24px;">
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px;">Nombre del Espacio</label>
+                <input type="text" id="newWorkspaceName" required placeholder="Ej: DevOps & Cloud Team" class="form-control" style="width: 100%; background: var(--bg-tertiary); border: 1px solid var(--border-color); color: #fff; padding: 10px 14px; border-radius: 8px; font-size: 14px; outline: none; box-sizing: border-box;">
+            </div>
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px;">Descripción (Opcional)</label>
+                <textarea id="newWorkspaceDesc" rows="3" placeholder="Propósito del equipo, microservicios, etc." class="form-control" style="width: 100%; background: var(--bg-tertiary); border: 1px solid var(--border-color); color: #fff; padding: 10px 14px; border-radius: 8px; font-size: 13.5px; outline: none; box-sizing: border-box; resize: vertical;"></textarea>
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                <button type="button" class="btn-secondary" onclick="closeCreateWorkspaceModal()" style="padding: 9px 18px; border-radius: 8px; background: transparent; border: 1px solid var(--border-color); color: var(--text-muted); cursor: pointer;">Cancelar</button>
+                <button type="submit" class="btn-primary" id="btnSubmitWorkspace" style="padding: 9px 20px; border-radius: 8px; background: var(--accent-blurple); border: none; color: #fff; font-weight: 600; cursor: pointer;">Crear Espacio</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Reenviar Mensaje a Canal o Chat Privado -->
+<div class="modal" id="forwardModal" style="display: none; align-items: center; justify-content: center; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 10000;">
+    <div class="modal-dialog" style="background: var(--bg-secondary); border-radius: 12px; width: 90%; max-width: 460px; border: 1px solid var(--border-color); box-shadow: 0 16px 40px rgba(0,0,0,0.6); overflow: hidden;">
+        <div style="padding: 18px 22px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 20px;">↪️</span>
+                <h3 style="margin: 0; font-size: 16px; font-weight: 700; color: #fff;">Reenviar Mensaje</h3>
+            </div>
+            <button type="button" class="btn-icon" onclick="closeForwardModal()" style="font-size: 16px; color: var(--text-muted);">✕</button>
+        </div>
+        <div style="padding: 20px;">
+            <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 10px;">Selecciona el destino:</div>
+            
+            <!-- Lista de Canales -->
+            <div style="font-size: 11.5px; font-weight: 600; color: var(--accent-blurple); margin-bottom: 6px;">CANALES DE TEXTO</div>
+            <div class="forward-dest-list" style="max-height: 140px; overflow-y: auto; margin-bottom: 16px; display: flex; flex-direction: column; gap: 4px;">
+                {% for ch in channels %}
+                    <button type="button" class="forward-dest-item" onclick="submitForward('channel', '{{ ch.id }}')" style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--bg-tertiary); border: 1px solid transparent; border-radius: 6px; color: #fff; cursor: pointer; text-align: left; width: 100%;">
+                        <span>#</span>
+                        <span style="flex: 1; font-size: 13.5px;">{{ ch.name }}</span>
+                        <span style="font-size: 12px; color: var(--text-muted);">Enviar ↗</span>
+                    </button>
+                {% empty %}
+                    <div style="font-size: 12px; color: var(--text-muted); padding: 4px 8px;">No hay otros canales disponibles.</div>
+                {% endfor %}
+            </div>
+
+            <!-- Lista de DMs -->
+            <div style="font-size: 11.5px; font-weight: 600; color: #23a559; margin-bottom: 6px;">CHATS DIRECTOS</div>
+            <div class="forward-dest-list" style="max-height: 140px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;">
+                {% for dm in direct_conversations %}
+                    {% with target_u=dm.get_other_participant %}
+                    <button type="button" class="forward-dest-item" onclick="submitForward('dm', '{{ dm.id }}')" style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--bg-tertiary); border: 1px solid transparent; border-radius: 6px; color: #fff; cursor: pointer; text-align: left; width: 100%;">
+                        <span>👤</span>
+                        <span style="flex: 1; font-size: 13.5px;">
+                            {% for p in dm.participants.all %}{% if p != request.user %}{{ p.profile.get_display_name|default:p.username }}{% endif %}{% endfor %}
+                        </span>
+                        <span style="font-size: 12px; color: var(--text-muted);">Enviar ↗</span>
+                    </button>
+                    {% endwith %}
+                {% empty %}
+                    <div style="font-size: 12px; color: var(--text-muted); padding: 4px 8px;">No hay chats directos disponibles.</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Menú Contextual Desplegable para el Botón ••• de Mensaje -->
+<div class="msg-context-menu" id="msgContextMenu" style="display: none;" onclick="event.stopPropagation()">
+    <div class="ctx-item" onclick="ctxActionCopyText()">
+        <span>📋</span>
+        <span>Copiar texto</span>
+    </div>
+    <div class="ctx-item" onclick="ctxActionReply()">
+        <span>↩️</span>
+        <span>Responder</span>
+    </div>
+    <div class="ctx-item" onclick="ctxActionForward()">
+        <span>↪️</span>
+        <span>Reenviar</span>
+    </div>
+    <div class="ctx-divider"></div>
+    <div class="ctx-item ctx-danger" id="ctxItemDelete" onclick="ctxActionDelete()">
+        <span>🗑️</span>
+        <span>Eliminar mensaje</span>
+    </div>
+</div>
+
+<!-- Picker Flotante de Emojis para Reacción a Mensaje Específico -->
+<div class="msg-reaction-picker" id="msgReactionPicker" style="display: none;" onclick="event.stopPropagation()">
+    <span class="rx-opt" onclick="selectReactionEmoji('❤️')" title="Amor">❤️</span>
+    <span class="rx-opt" onclick="selectReactionEmoji('🔥')" title="Fuego">🔥</span>
+    <span class="rx-opt" onclick="selectReactionEmoji('🎉')" title="Fiesta">🎉</span>
+    <span class="rx-opt" onclick="selectReactionEmoji('🚀')" title="Cohete">🚀</span>
+    <span class="rx-opt" onclick="selectReactionEmoji('😂')" title="Risas">😂</span>
+    <span class="rx-opt" onclick="selectReactionEmoji('😢')" title="Triste">😢</span>
+    <span class="rx-opt" onclick="selectReactionEmoji('👏')" title="Aplausos">👏</span>
+    <span class="rx-opt" onclick="selectReactionEmoji('💻')" title="Dev">💻</span>
+    <span class="rx-opt" onclick="selectReactionEmoji('👀')" title="Ojos">👀</span>
+    <span class="rx-opt" onclick="selectReactionEmoji('✅')" title="Listo">✅</span>
 </div>
 {% endblock %}
 

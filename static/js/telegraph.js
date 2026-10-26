@@ -85,7 +85,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // 4. Inicialización y actualización de presencia en tiempo real
+            // 4. Actualización de reacciones a mensajes
+            if (data.type === 'reaction_update') {
+                handleReactionUpdate(data);
+                return;
+            }
+
+            // 4.1 Mensaje eliminado
+            if (data.type === 'message_deleted') {
+                handleMessageDeleted(data.message_id);
+                return;
+            }
+
+            // 5. Inicialización y actualización de presencia en tiempo real
             if (data.type === 'presence_init') {
                 handlePresenceInit(data.online_user_ids || [], data.user_statuses || {});
                 return;
@@ -315,9 +327,11 @@ document.addEventListener('DOMContentLoaded', () => {
         socket.send(JSON.stringify({
             type: 'message',
             content: text,
-            is_code: false
+            is_code: false,
+            reply_to_id: window.currentReplyingMessageId
         }));
 
+        window.cancelReply();
         messageInput.value = '';
         messageInput.style.height = '44px';
     }
@@ -360,8 +374,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const card = document.createElement('div');
         const sender = msg.sender || msg.author || '';
         const isMe = (sender === currentUser);
+        const msgId = msg.id || ('tmp-' + Date.now());
         card.className = `message-card ${isMe ? 'msg-outgoing' : 'msg-incoming'}`;
-        card.id = `msg-${msg.id || Date.now()}`;
+        card.id = `msg-${msgId}`;
         if (!isMe) {
             card.setAttribute('data-author', sender);
         }
@@ -374,6 +389,34 @@ document.addEventListener('DOMContentLoaded', () => {
             ? `<span class="msg-author-self">Tú</span> ${escapeHtml(msg.display_name || sender)}` 
             : escapeHtml(msg.display_name || sender);
         const checkHtml = isMe ? '<span class="msg-status-check" title="Enviado">✓✓</span>' : '';
+
+        // Barra flotante de acciones rápidas (Reacciones, Responder, Reenviar, Más opciones)
+        const snippetForReply = msg.is_sticker ? '🎨 Sticker' : (msg.is_code ? '💻 Código' : (msg.content ? msg.content.substring(0, 60) : ''));
+        const quickActionsHtml = `
+            <div class="msg-quick-actions" data-message-id="${escapeHtml(msgId)}">
+                <button type="button" class="quick-act-btn" onclick="toggleReaction('${escapeHtml(msgId)}', '💯')" title="100">💯</button>
+                <button type="button" class="quick-act-btn" onclick="toggleReaction('${escapeHtml(msgId)}', '👎')" title="No me gusta">👎</button>
+                <button type="button" class="quick-act-btn" onclick="toggleReaction('${escapeHtml(msgId)}', '👍')" title="Me gusta">👍</button>
+                <button type="button" class="quick-act-btn" onclick="openMessageEmojiPicker('${escapeHtml(msgId)}', event)" title="Más reacciones">😊</button>
+                <button type="button" class="quick-act-btn" onclick="replyToMessage('${escapeHtml(msgId)}', '${escapeHtml(msg.display_name || sender)}', '${escapeHtml(snippetForReply)}')" title="Responder">↩️</button>
+                <button type="button" class="quick-act-btn" onclick="openForwardModal('${escapeHtml(msgId)}')" title="Reenviar">↪️</button>
+                <button type="button" class="quick-act-btn" onclick="openMessageContextMenu('${escapeHtml(msgId)}', event)" title="Más opciones">•••</button>
+            </div>
+        `;
+
+        // Bloque de Cita / Respuesta estilo Telegram
+        let quoteHtml = '';
+        if (msg.reply_to) {
+            quoteHtml = `
+                <div class="msg-quote-box" onclick="scrollToMessage('${escapeHtml(msg.reply_to.id)}')" title="Ir al mensaje respondido">
+                    <div class="msg-quote-line"></div>
+                    <div class="msg-quote-body">
+                        <span class="msg-quote-author">${escapeHtml(msg.reply_to.display_name || msg.reply_to.author)}</span>
+                        <span class="msg-quote-snippet">${escapeHtml(msg.reply_to.content_snippet || '')}</span>
+                    </div>
+                </div>
+            `;
+        }
 
         let innerContent = '';
         let pendingLottieId = null;
@@ -431,7 +474,10 @@ document.addEventListener('DOMContentLoaded', () => {
             ? `<img src="${msg.avatar_url}" alt="Avatar" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`
             : escapeHtml(sender.charAt(0).toUpperCase());
 
+        const reactionsHtml = `<div class="msg-reactions-container" id="reactions-${escapeHtml(msgId)}"></div>`;
+
         card.innerHTML = `
+            ${quickActionsHtml}
             <div class="msg-avatar ${avatarColorClass}" onclick="openUserProfileCard('${escapeHtml(sender)}')" style="cursor: pointer;">${avatarHtml}</div>
             <div class="msg-body">
                 <div class="msg-meta">
@@ -439,7 +485,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     <span class="msg-time">${msg.created_at || 'ahora'}</span>
                     ${checkHtml}
                 </div>
+                ${quoteHtml}
                 ${innerContent}
+                ${reactionsHtml}
             </div>
         `;
 
@@ -2097,6 +2145,269 @@ document.addEventListener('DOMContentLoaded', () => {
             document.addEventListener('click', onFirstInteraction, { once: true });
         }
     }
+
+    // =========================================================================
+    // TELEGRAM-STYLE REPLIES, REACTIONS, FORWARD & WORKSPACES LOGIC
+    // =========================================================================
+    window.currentReplyingMessageId = null;
+    window.currentContextMessageId = null;
+    window.currentPickerMessageId = null;
+    window.forwardMessageId = null;
+
+    // Responder mensaje estilo Telegram
+    window.replyToMessage = function(messageId, authorDisplayName, snippet) {
+        window.currentReplyingMessageId = messageId;
+        const banner = document.getElementById('replyingBanner');
+        const authorEl = document.getElementById('replyingAuthorName');
+        const snippetEl = document.getElementById('replyingSnippetText');
+        if (authorEl) authorEl.textContent = authorDisplayName || 'Usuario';
+        if (snippetEl) snippetEl.textContent = snippet || '';
+        if (banner) banner.style.display = 'flex';
+        if (messageInput) messageInput.focus();
+    };
+
+    window.cancelReply = function() {
+        window.currentReplyingMessageId = null;
+        const banner = document.getElementById('replyingBanner');
+        if (banner) banner.style.display = 'none';
+    };
+
+    window.scrollToMessage = function(messageId) {
+        if (!messageId) return;
+        const el = document.getElementById('msg-' + messageId);
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.classList.add('highlight-flash');
+            setTimeout(() => el.classList.remove('highlight-flash'), 1600);
+        }
+    };
+
+    // Reacciones de Emojis
+    window.toggleReaction = function(messageId, emoji) {
+        if (!socket || socket.readyState !== WebSocket.OPEN) return;
+        socket.send(JSON.stringify({
+            type: 'toggle_reaction',
+            message_id: messageId,
+            emoji: emoji
+        }));
+    };
+
+    window.openMessageEmojiPicker = function(messageId, event) {
+        event.stopPropagation();
+        window.currentPickerMessageId = messageId;
+        const picker = document.getElementById('msgReactionPicker');
+        if (!picker) return;
+        const rect = event.currentTarget.getBoundingClientRect();
+        picker.style.top = Math.max(10, rect.top - 46) + 'px';
+        picker.style.left = Math.max(10, rect.left - 130) + 'px';
+        picker.style.display = 'flex';
+    };
+
+    window.selectReactionEmoji = function(emoji) {
+        if (window.currentPickerMessageId) {
+            window.toggleReaction(window.currentPickerMessageId, emoji);
+        }
+        closeContextMenus();
+    };
+
+    function handleReactionUpdate(data) {
+        const container = document.getElementById('reactions-' + data.message_id);
+        if (!container) return;
+        container.innerHTML = '';
+        const summary = data.summary || [];
+        summary.forEach(item => {
+            const chip = document.createElement('button');
+            chip.type = 'button';
+            chip.className = `msg-reaction-chip ${item.has_reacted ? 'active' : ''}`;
+            chip.onclick = () => window.toggleReaction(data.message_id, item.emoji);
+            chip.title = (item.users || []).join(', ');
+            chip.innerHTML = `<span class="reaction-emoji">${item.emoji}</span><span class="reaction-count">${item.count}</span>`;
+            container.appendChild(chip);
+        });
+    }
+
+    function handleMessageDeleted(messageId) {
+        const el = document.getElementById('msg-' + messageId);
+        if (el) {
+            el.style.transition = 'opacity 0.25s ease, transform 0.25s ease';
+            el.style.opacity = '0';
+            el.style.transform = 'scale(0.95)';
+            setTimeout(() => el.remove(), 250);
+        }
+    }
+
+    // Menú Contextual (•••)
+    window.openMessageContextMenu = function(messageId, event) {
+        event.stopPropagation();
+        window.currentContextMessageId = messageId;
+        const menu = document.getElementById('msgContextMenu');
+        if (!menu) return;
+        const rect = event.currentTarget.getBoundingClientRect();
+        menu.style.top = (rect.bottom + 6) + 'px';
+        menu.style.left = Math.max(10, rect.right - 175) + 'px';
+        menu.style.display = 'block';
+
+        const card = document.getElementById('msg-' + messageId);
+        const delItem = document.getElementById('ctxItemDelete');
+        if (card && delItem) {
+            const isMyMsg = card.classList.contains('msg-outgoing');
+            delItem.style.display = (isMyMsg || window.DEV_IS_ADMIN) ? 'flex' : 'none';
+        }
+    };
+
+    window.ctxActionCopyText = function() {
+        if (!window.currentContextMessageId) return;
+        const card = document.getElementById('msg-' + window.currentContextMessageId);
+        if (card) {
+            const contentEl = card.querySelector('.msg-content') || card.querySelector('.code-container');
+            if (contentEl) {
+                navigator.clipboard.writeText(contentEl.innerText.trim());
+                if (typeof showNotificationToast === 'function') {
+                    showNotificationToast('Copiado', 'Texto copiado al portapapeles');
+                }
+            }
+        }
+        closeContextMenus();
+    };
+
+    window.ctxActionReply = function() {
+        if (!window.currentContextMessageId) return;
+        const card = document.getElementById('msg-' + window.currentContextMessageId);
+        if (card) {
+            const authorEl = card.querySelector('.msg-author');
+            const contentEl = card.querySelector('.msg-content') || card.querySelector('.code-container');
+            const author = authorEl ? authorEl.textContent.replace('Tú', '').trim() : 'Usuario';
+            const snippet = contentEl ? contentEl.textContent.trim().substring(0, 65) : '';
+            window.replyToMessage(window.currentContextMessageId, author, snippet);
+        }
+        closeContextMenus();
+    };
+
+    window.ctxActionForward = function() {
+        if (!window.currentContextMessageId) return;
+        window.openForwardModal(window.currentContextMessageId);
+        closeContextMenus();
+    };
+
+    window.ctxActionDelete = function() {
+        if (!window.currentContextMessageId) return;
+        if (confirm('¿Deseas eliminar este mensaje para todos?')) {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({
+                    type: 'delete_message',
+                    message_id: window.currentContextMessageId
+                }));
+            }
+        }
+        closeContextMenus();
+    };
+
+    function closeContextMenus() {
+        const menu = document.getElementById('msgContextMenu');
+        if (menu) menu.style.display = 'none';
+        const rx = document.getElementById('msgReactionPicker');
+        if (rx) rx.style.display = 'none';
+    }
+    document.addEventListener('click', closeContextMenus);
+
+    // Reenviar Mensaje
+    window.openForwardModal = function(messageId) {
+        window.forwardMessageId = messageId;
+        const modal = document.getElementById('forwardModal');
+        if (modal) modal.style.display = 'flex';
+    };
+
+    window.closeForwardModal = function() {
+        window.forwardMessageId = null;
+        const modal = document.getElementById('forwardModal');
+        if (modal) modal.style.display = 'none';
+    };
+
+    window.submitForward = async function(targetType, targetId) {
+        if (!window.forwardMessageId || !targetId) return;
+        try {
+            const resp = await fetch(`/api/messages/${window.forwardMessageId}/forward/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': window.TELEGRAPH_CSRF_TOKEN || csrfToken
+                },
+                body: JSON.stringify({ target_type: targetType, target_id: targetId })
+            });
+            const res = await resp.json();
+            if (res.status === 'success') {
+                window.closeForwardModal();
+                if (typeof showNotificationToast === 'function') {
+                    showNotificationToast('Reenvío completado', 'Mensaje reenviado exitosamente');
+                }
+            } else {
+                alert(res.message || 'Error al reenviar mensaje');
+            }
+        } catch (e) {
+            console.error(e);
+            alert('Error de conexión al reenviar');
+        }
+    };
+
+    // Crear Espacio de Trabajo (Workspace)
+    window.openCreateWorkspaceModal = function() {
+        const modal = document.getElementById('createWorkspaceModal');
+        if (modal) {
+            modal.style.display = 'flex';
+            const input = document.getElementById('newWorkspaceName');
+            if (input) setTimeout(() => input.focus(), 60);
+        }
+    };
+
+    window.closeCreateWorkspaceModal = function() {
+        const modal = document.getElementById('createWorkspaceModal');
+        if (modal) modal.style.display = 'none';
+    };
+
+    window.submitCreateWorkspace = async function(e) {
+        if (e) e.preventDefault();
+        const nameInput = document.getElementById('newWorkspaceName');
+        const descInput = document.getElementById('newWorkspaceDesc');
+        const btn = document.getElementById('btnSubmitWorkspace');
+        if (!nameInput || !nameInput.value.trim()) return;
+
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = 'Creando...';
+        }
+
+        try {
+            const resp = await fetch('/api/workspaces/create/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': window.TELEGRAPH_CSRF_TOKEN || csrfToken
+                },
+                body: JSON.stringify({
+                    name: nameInput.value.trim(),
+                    description: descInput ? descInput.value.trim() : ''
+                })
+            });
+            const res = await resp.json();
+            if (res.status === 'success' && res.redirect_url) {
+                window.location.href = res.redirect_url;
+            } else {
+                alert(res.message || 'Error al crear espacio de trabajo');
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = 'Crear Espacio';
+                }
+            }
+        } catch (err) {
+            console.error(err);
+            alert('Error de red al crear espacio de trabajo');
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = 'Crear Espacio';
+            }
+        }
+    };
 });
+
 
 

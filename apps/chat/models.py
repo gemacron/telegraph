@@ -143,6 +143,12 @@ class Workspace(models.Model):
     members = models.ManyToManyField(User, related_name="workspaces", blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    def get_general_channel(self):
+        ch = self.channels.filter(is_general=True).first()
+        if not ch:
+            ch = self.channels.first()
+        return ch
+
     def __str__(self):
         return self.name
 
@@ -287,6 +293,26 @@ class Message(models.Model):
         )
         return highlight(code_to_highlight, lexer, formatter)
 
+    # Cita / Respuesta estilo Telegram
+    reply_to = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='replies')
+
+    def get_grouped_reactions(self, current_user=None):
+        """Retorna las reacciones agrupadas con conteo y si el usuario actual ya reaccionó."""
+        grouped = {}
+        for r in self.reactions.all():
+            if r.emoji not in grouped:
+                grouped[r.emoji] = {
+                    'emoji': r.emoji,
+                    'count': 0,
+                    'users': [],
+                    'has_reacted': False
+                }
+            grouped[r.emoji]['count'] += 1
+            grouped[r.emoji]['users'].append(r.user.username)
+            if current_user and r.user_id == current_user.id:
+                grouped[r.emoji]['has_reacted'] = True
+        return list(grouped.values())
+
     def save(self, *args, **kwargs):
         if self.is_code_snippet or "```" in self.content:
             self.formatted_code_html = self.render_syntax_highlighting()
@@ -295,6 +321,24 @@ class Message(models.Model):
     def __str__(self):
         dest = self.channel.name if self.channel else "DM"
         return f"[{dest}] {self.author.username}: {self.content[:30]}"
+
+class MessageReaction(models.Model):
+    """Reacciones de emojis a mensajes estilo Discord/Telegram (👍, 👎, 💯, ❤️, 🔥, etc.)."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    message = models.ForeignKey(Message, on_delete=models.CASCADE, related_name="reactions")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="message_reactions")
+    emoji = models.CharField(max_length=16)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('message', 'user', 'emoji')
+        indexes = [
+            models.Index(fields=['message', 'emoji']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} -> {self.emoji} on {self.message_id}"
+
 
 class EphemeralSecret(models.Model):
     """
