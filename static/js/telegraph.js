@@ -889,40 +889,101 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 100);
     };
 
-    // Colección de GIFs de desarrollo y humor de equipo
-    function loadTelegramGifs() {
-        const grid = document.getElementById('tgGifsGrid');
-        if (!grid || grid.children.length > 0) return;
+    // Envío directo de GIFs estilo Telegram al chat (animados)
+    window.sendTelegramGif = function(gifUrl, gifTitle) {
+        if (!socket || socket.readyState !== WebSocket.OPEN) return;
+        socket.send(JSON.stringify({
+            type: 'sticker',
+            is_sticker: true,
+            sticker_image_url: gifUrl,
+            content: gifTitle || 'GIF',
+            is_animated_sticker: true,
+            sticker_animation_type: 'gif'
+        }));
+        closeTelegramPicker();
+    };
 
-        const gifs = [
-            { name: 'Coding Hacker', url: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=240&h=160&fit=crop', label: '💻 Coding Fast' },
-            { name: 'Server Deployment', url: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=240&h=160&fit=crop', label: '🚀 Deploying' },
-            { name: 'Bug Hunting', url: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=240&h=160&fit=crop', label: '🐛 Fix in Progress' },
-            { name: 'Coffee Mode', url: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=240&h=160&fit=crop', label: '☕ Need Coffee' }
-        ];
+    // Colección de GIFs en vivo con motor estilo Telegram (Giphy / Tenor)
+    let tgGifDebounceTimer = null;
+    let tgCurrentGifQuery = '';
 
-        grid.innerHTML = '';
-        gifs.forEach(g => {
-            const item = document.createElement('div');
-            item.className = 'tg-gif-item';
-            item.onclick = () => {
-                if (!socket || socket.readyState !== WebSocket.OPEN) return;
-                socket.send(JSON.stringify({
-                    type: 'message',
-                    content: `![${g.name}](${g.url})`,
-                    is_code: false
-                }));
-                closeTelegramPicker();
-            };
-            item.innerHTML = `
-                <img src="${g.url}" alt="${g.name}" class="tg-gif-img">
-                <div class="tg-gif-label">${g.label}</div>
-            `;
-            grid.appendChild(item);
+    window.searchTgGifsByCategory = function(categoryKeyword) {
+        // Actualizar chips visualmente
+        const chips = document.querySelectorAll('.tg-gif-chip');
+        chips.forEach(chip => {
+            const isMatch = (categoryKeyword === '' && chip.textContent.includes('Tendencias')) ||
+                            (categoryKeyword !== '' && chip.getAttribute('onclick').includes(`'${categoryKeyword}'`));
+            if (isMatch) {
+                chip.classList.add('active');
+            } else {
+                chip.classList.remove('active');
+            }
         });
+
+        const searchInput = document.getElementById('tgSearchInput');
+        if (searchInput) searchInput.value = categoryKeyword;
+
+        loadTelegramGifs(categoryKeyword);
+    };
+
+    async function loadTelegramGifs(query = '') {
+        const grid = document.getElementById('tgGifsGrid');
+        if (!grid) return;
+
+        tgCurrentGifQuery = query;
+        grid.innerHTML = `
+            <div class="tg-gif-spinner">
+                <span style="font-size: 24px; animation: spin 1s infinite linear;">🔄</span>
+                <span>Cargando GIFs de Telegram...</span>
+            </div>
+        `;
+
+        try {
+            const endpoint = query 
+                ? `/api/gifs/search/?q=${encodeURIComponent(query)}` 
+                : '/api/gifs/trending/';
+            
+            const res = await fetch(endpoint);
+            if (!res.ok) throw new Error('Error al conectar con el servidor de GIFs');
+            const data = await res.json();
+            const gifs = data.gifs || [];
+
+            // Si la consulta cambió mientras esperábamos la respuesta, descartar
+            if (tgCurrentGifQuery !== query) return;
+
+            grid.innerHTML = '';
+            if (gifs.length === 0) {
+                grid.innerHTML = `
+                    <div style="grid-column: span 2; color: #949ba4; padding: 40px 10px; text-align: center;">
+                        <span style="font-size: 28px; display: block; margin-bottom: 8px;">🔍</span>
+                        No se encontraron GIFs para "${escapeHtml(query)}"
+                    </div>
+                `;
+                return;
+            }
+
+            gifs.forEach(g => {
+                const item = document.createElement('div');
+                item.className = 'tg-gif-item';
+                item.title = g.title || 'GIF';
+                item.onclick = () => sendTelegramGif(g.url, g.title);
+                item.innerHTML = `
+                    <img src="${g.preview_url || g.url}" alt="${escapeHtml(g.title)}" class="tg-gif-img" loading="lazy">
+                    <div class="tg-gif-label">${escapeHtml(g.title)}</div>
+                `;
+                grid.appendChild(item);
+            });
+        } catch (err) {
+            console.error('Error cargando GIFs:', err);
+            grid.innerHTML = `
+                <div style="grid-column: span 2; color: #f23f43; padding: 30px 10px; text-align: center; font-size: 13px;">
+                    ⚠️ Error al cargar GIFs. Verifica tu conexión a Internet.
+                </div>
+            `;
+        }
     }
 
-    // Filtrar contenido en el buscador
+    // Filtrar contenido en el buscador según la pestaña activa
     window.filterTgContent = function(query) {
         const q = (query || '').toLowerCase().trim();
         const activePane = document.querySelector('.tg-pane:not([style*="display: none"])');
@@ -938,6 +999,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const title = (el.getAttribute('title') || '').toLowerCase();
                 el.style.display = (!q || title.includes(q)) ? 'flex' : 'none';
             });
+        } else if (activePane.id === 'tgPaneGifs') {
+            if (tgGifDebounceTimer) clearTimeout(tgGifDebounceTimer);
+            tgGifDebounceTimer = setTimeout(() => {
+                loadTelegramGifs(q);
+            }, 350);
         }
     };
 

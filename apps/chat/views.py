@@ -23,6 +23,10 @@ from apps.chat.models import (
     Workspace, Channel, DirectConversation, Message, 
     EphemeralSecret, Attachment, Sticker, UserProfile
 )
+import urllib.request
+import urllib.parse
+import urllib.error
+from django.core.cache import cache
 from apps.chat.presence import PresenceService
 from apps.dlp.scanner import DataLossPreventionScanner
 from apps.audit.services import AuditService
@@ -1244,5 +1248,87 @@ def upload_sticker_api(request):
         })
     except Exception as e:
         return JsonResponse({'error': f'Error procesando sticker: {str(e)}'}, status=400)
+
+
+GIPHY_API_KEY = os.getenv('GIPHY_API_KEY', 'GlVGYHkr3WSBnllca54iNt0yFbjz7L65')
+
+@login_required
+@require_GET
+def list_trending_gifs_api(request):
+    """Retorna los GIFs en tendencia estilo Telegram con caching en Redis."""
+    cache_key = "telegraph_gifs_trending"
+    cached = cache.get(cache_key)
+    if cached:
+        return JsonResponse({'status': 'success', 'gifs': cached})
+
+    try:
+        url = f"https://api.giphy.com/v1/gifs/trending?api_key={GIPHY_API_KEY}&limit=36&rating=g"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Telegraph/2.0'})
+        with urllib.request.urlopen(req, timeout=5) as response:
+            payload = json.loads(response.read().decode('utf-8'))
+            items = payload.get('data', [])
+            gifs = []
+            for item in items:
+                images = item.get('images', {})
+                fixed = images.get('fixed_height', {})
+                downsized = images.get('downsized', {})
+                preview = images.get('fixed_height_small', {}) or fixed
+                gif_url = fixed.get('url') or downsized.get('url') or item.get('url')
+                if gif_url:
+                    gifs.append({
+                        'id': item.get('id'),
+                        'title': item.get('title', 'GIF'),
+                        'preview_url': preview.get('url', gif_url),
+                        'url': gif_url,
+                        'width': fixed.get('width', '200'),
+                        'height': fixed.get('height', '200')
+                    })
+            cache.set(cache_key, gifs, timeout=300)
+            return JsonResponse({'status': 'success', 'gifs': gifs})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e), 'gifs': []}, status=500)
+
+
+@login_required
+@require_GET
+def search_gifs_api(request):
+    """Busca GIFs por palabra clave con debounce y caching en Redis."""
+    query = request.GET.get('q', '').strip()
+    if not query:
+        return list_trending_gifs_api(request)
+
+    cache_key = f"telegraph_gifs_search_{query.lower()[:30]}"
+    cached = cache.get(cache_key)
+    if cached:
+        return JsonResponse({'status': 'success', 'gifs': cached})
+
+    try:
+        encoded_query = urllib.parse.quote(query)
+        url = f"https://api.giphy.com/v1/gifs/search?api_key={GIPHY_API_KEY}&q={encoded_query}&limit=36&rating=g"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Telegraph/2.0'})
+        with urllib.request.urlopen(req, timeout=5) as response:
+            payload = json.loads(response.read().decode('utf-8'))
+            items = payload.get('data', [])
+            gifs = []
+            for item in items:
+                images = item.get('images', {})
+                fixed = images.get('fixed_height', {})
+                downsized = images.get('downsized', {})
+                preview = images.get('fixed_height_small', {}) or fixed
+                gif_url = fixed.get('url') or downsized.get('url') or item.get('url')
+                if gif_url:
+                    gifs.append({
+                        'id': item.get('id'),
+                        'title': item.get('title', 'GIF'),
+                        'preview_url': preview.get('url', gif_url),
+                        'url': gif_url,
+                        'width': fixed.get('width', '200'),
+                        'height': fixed.get('height', '200')
+                    })
+            cache.set(cache_key, gifs, timeout=300)
+            return JsonResponse({'status': 'success', 'gifs': gifs})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e), 'gifs': []}, status=500)
+
 
 

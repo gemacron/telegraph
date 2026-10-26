@@ -527,18 +527,31 @@
 
                     <!-- Pestaña GIFs -->
                     <div class="tg-pane" id="tgPaneGifs" style="display: none;">
+                        <!-- Chips de Categorías Populares Estilo Telegram -->
+                        <div class="tg-gif-categories" id="tgGifCategories">
+                            <button type="button" class="tg-gif-chip active" onclick="searchTgGifsByCategory('')">🔥 Tendencias</button>
+                            <button type="button" class="tg-gif-chip" onclick="searchTgGifsByCategory('laugh')">😂 Risas</button>
+                            <button type="button" class="tg-gif-chip" onclick="searchTgGifsByCategory('thumbs up')">👍 Sí / Ok</button>
+                            <button type="button" class="tg-gif-chip" onclick="searchTgGifsByCategory('party')">🎉 Fiesta</button>
+                            <button type="button" class="tg-gif-chip" onclick="searchTgGifsByCategory('programming')">💻 Dev / Code</button>
+                            <button type="button" class="tg-gif-chip" onclick="searchTgGifsByCategory('cat')">🐱 Gatos</button>
+                            <button type="button" class="tg-gif-chip" onclick="searchTgGifsByCategory('love')">❤️ Amor</button>
+                            <button type="button" class="tg-gif-chip" onclick="searchTgGifsByCategory('mind blown')">🤯 Wow</button>
+                            <button type="button" class="tg-gif-chip" onclick="searchTgGifsByCategory('applause')">👏 Aplausos</button>
+                        </div>
                         <div class="tg-gifs-grid" id="tgGifsGrid">
-                            <!-- Colección de GIFs de desarrollo y humor -->
+                            <!-- Se puebla dinámicamente con GIFs en vivo -->
                         </div>
                     </div>
                 </div>
 
-                <!-- 4. Dock Inferior Telegram con Accesos Directos a Packs -->
+                <!-- 4. Dock Inferior Telegram con Accesos Directos a Packs Oficiales -->
                 <div class="tg-bottom-dock" id="tgBottomDock">
                     <button type="button" class="tg-dock-item active" id="dockBtnEmojis" onclick="switchTgTab('emojis')" title="Emojis">😊</button>
-                    <button type="button" class="tg-dock-item" id="dockBtnTgPack" onclick="jumpToStickerPack('Telegram')" title="Pack Telegram">🚀</button>
-                    <button type="button" class="tg-dock-item" id="dockBtnDevPack" onclick="jumpToStickerPack('Dev')" title="Pack Dev">💻</button>
-                    <button type="button" class="tg-dock-item" id="dockBtnGifs" onclick="switchTgTab('gifs')" title="GIFs">🎬</button>
+                    <button type="button" class="tg-dock-item" id="dockBtnAnimPack" onclick="jumpToStickerPack('Animated Emojis')" title="Telegram Animated Emojis">✨</button>
+                    <button type="button" class="tg-dock-item" id="dockBtnOficialPack" onclick="jumpToStickerPack('Oficial')" title="Telegram Animados Oficial">🚀</button>
+                    <button type="button" class="tg-dock-item" id="dockBtnClasicosPack" onclick="jumpToStickerPack('Clásicos')" title="Telegram Clásicos">⭐</button>
+                    <button type="button" class="tg-dock-item" id="dockBtnGifs" onclick="switchTgTab('gifs')" title="GIFs Telegram">🎬</button>
                     <button type="button" class="tg-dock-item" onclick="openUploadModalFromTg()" title="➕ Subir Nuevo Sticker">➕</button>
                 </div>
             </div>
