@@ -425,7 +425,7 @@
                         <div class="msg-meta">
                             <span class="msg-author" onclick="openUserProfileCard('{{ msg.author.username }}')">
                                 {% if msg.author == request.user %}
-                                    <span class="msg-author-self">Tú</span>
+                                    <span class="msg-author-self">Tú</span> {{ request.user.profile.get_display_name|default:request.user.username }}
                                 {% else %}
                                     {{ msg.author.profile.get_display_name|default:msg.author.username }}
                                 {% endif %}

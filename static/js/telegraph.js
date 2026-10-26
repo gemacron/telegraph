@@ -370,7 +370,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const authorColorClass = isMe ? '' : `msg-author-color-${colorIdx}`;
         const avatarColorClass = isMe ? '' : `msg-avatar-color-${colorIdx}`;
 
-        const authorDisplay = isMe ? '<span class="msg-author-self">Tú</span>' : escapeHtml(msg.display_name || sender);
+        const authorDisplay = isMe 
+            ? `<span class="msg-author-self">Tú</span> ${escapeHtml(msg.display_name || sender)}` 
+            : escapeHtml(msg.display_name || sender);
         const checkHtml = isMe ? '<span class="msg-status-check" title="Enviado">✓✓</span>' : '';
 
         let innerContent = '';
