@@ -19,6 +19,13 @@ class UserProfile(models.Model):
     display_name = models.CharField(max_length=80, blank=True, default="")
     bio = models.TextField(max_length=300, blank=True, default="Desarrollador en Telegraph")
     custom_status = models.CharField(max_length=120, blank=True, default="Programando 💻")
+    STATUS_CHOICES = [
+        ('online', 'En línea'),
+        ('idle', 'Ausente'),
+        ('dnd', 'No molestar'),
+        ('offline', 'Invisible'),
+    ]
+    status_choice = models.CharField(max_length=15, choices=STATUS_CHOICES, default='online')
     avatar = models.ImageField(upload_to="avatars/%Y/%m/", null=True, blank=True)
     banner_color = models.CharField(max_length=7, default="#5865f2")
     ROLE_CHOICES = [

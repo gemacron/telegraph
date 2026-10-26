@@ -54,6 +54,17 @@ document.addEventListener('DOMContentLoaded', () => {
             // 3. Notificación de nuevo secreto efímero
             if (data.type === 'new_secret') {
                 appendSecretCard(data);
+                return;
+            }
+
+            // 4. Inicialización y actualización de presencia en tiempo real
+            if (data.type === 'presence_init') {
+                handlePresenceInit(data.online_user_ids || [], data.user_statuses || {});
+                return;
+            }
+            if (data.type === 'presence_update') {
+                handlePresenceUpdate(data);
+                return;
             }
         };
 
@@ -66,6 +77,194 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('[Telegraph] Error en WebSocket:', err);
         };
     }
+
+    // Funciones para Gestión de Presencia en Tiempo Real (Online, Idle, DND, Offline)
+    function getStatusLabel(status) {
+        switch (status) {
+            case 'online': return 'En línea';
+            case 'idle': return 'Ausente';
+            case 'dnd': return 'No molestar';
+            case 'offline': default: return 'Desconectado';
+        }
+    }
+
+    function applyStatusClasses(el, status, prefix) {
+        if (!el) return;
+        ['online', 'idle', 'dnd', 'offline'].forEach(s => el.classList.remove(prefix ? `${prefix}-${s}` : s));
+        el.classList.add(prefix ? `${prefix}-${status}` : status);
+    }
+
+    function handlePresenceInit(onlineUserIds, userStatuses) {
+        userStatuses = userStatuses || {};
+        const idSet = new Set((onlineUserIds || []).map(Number));
+
+        // Actualizar indicadores en la lista de Mensajes Directos (barra izquierda)
+        document.querySelectorAll('.dm-status-indicator[data-user-id]').forEach(el => {
+            const uid = Number(el.dataset.userId);
+            const status = userStatuses[uid] || (idSet.has(uid) ? 'online' : 'offline');
+            applyStatusClasses(el, status);
+
+            const subtitle = document.getElementById('dm-subtitle-' + uid);
+            if (subtitle) {
+                const txt = subtitle.textContent.trim();
+                if (['En línea', 'Ausente', 'No molestar', 'Desconectado'].includes(txt)) {
+                    subtitle.textContent = getStatusLabel(status);
+                }
+            }
+        });
+
+        // Actualizar miembros en barra derecha
+        document.querySelectorAll('.member-item[data-user-id]').forEach(item => {
+            const uid = Number(item.dataset.userId);
+            const status = userStatuses[uid] || (idSet.has(uid) ? 'online' : 'offline');
+            updateMemberItemPresence(item, uid, status);
+        });
+    }
+
+    function handlePresenceUpdate(data) {
+        const uid = Number(data.user_id);
+        const status = data.status || 'offline';
+
+        // 1. Barra izquierda: Mensajes directos
+        const dmIndicator = document.getElementById('dm-status-' + uid);
+        if (dmIndicator) {
+            applyStatusClasses(dmIndicator, status);
+            const dmSubtitle = document.getElementById('dm-subtitle-' + uid);
+            if (dmSubtitle) {
+                const txt = dmSubtitle.textContent.trim();
+                if (['En línea', 'Ausente', 'No molestar', 'Desconectado'].includes(txt)) {
+                    dmSubtitle.textContent = getStatusLabel(status);
+                }
+            }
+        }
+
+        // 2. Columna derecha de DM (Tarjeta de perfil de usuario)
+        const profileStatus = document.getElementById('profileDrawerStatus');
+        if (profileStatus) {
+            const activeUsername = document.querySelector('.profile-drawer-username')?.textContent?.trim();
+            if (activeUsername === data.username) {
+                applyStatusClasses(profileStatus, status);
+                profileStatus.title = getStatusLabel(status);
+            }
+        }
+
+        // 3. Columna derecha de Canal (Lista de Miembros)
+        const memberItem = document.getElementById('member-item-' + uid);
+        if (memberItem) {
+            updateMemberItemPresence(memberItem, uid, status);
+        }
+
+        // 4. Si es el usuario logueado actual
+        if (data.username === currentUser) {
+            const currentAvatarStatus = document.getElementById('currentUserAvatarStatus');
+            if (currentAvatarStatus) {
+                applyStatusClasses(currentAvatarStatus, status, 'status');
+            }
+            document.querySelectorAll('#statusPickerMenu .status-picker-item').forEach(btn => {
+                const isMatch = btn.getAttribute('onclick')?.includes(`'${status}'`);
+                btn.classList.toggle('active', !!isMatch);
+            });
+        }
+    }
+
+    function updateMemberItemPresence(memberItem, uid, status) {
+        const isOnline = status !== 'offline';
+        const memberStatus = document.getElementById('member-status-' + uid);
+        const onlineList = document.getElementById('onlineMembersList');
+        const offlineList = document.getElementById('offlineMembersList');
+        const onlineCountEl = document.getElementById('onlineCount');
+        const offlineCountEl = document.getElementById('offlineCount');
+        const noOnlineMsg = document.getElementById('noOnlineMsg');
+        const noOfflineMsg = document.getElementById('noOfflineMsg');
+
+        if (memberStatus) {
+            applyStatusClasses(memberStatus, status);
+        }
+
+        const avatarImg = memberItem.querySelector('.member-avatar img');
+        const customStatusEl = memberItem.querySelector('.member-custom-status');
+
+        if (isOnline) {
+            memberItem.classList.remove('member-offline');
+            memberItem.classList.add('member-online');
+            memberItem.style.opacity = '1';
+            if (avatarImg) avatarImg.style.filter = 'none';
+            if (customStatusEl && ['En línea', 'Ausente', 'No molestar', 'Desconectado'].includes(customStatusEl.textContent.trim())) {
+                customStatusEl.textContent = getStatusLabel(status);
+            }
+            if (onlineList && !onlineList.contains(memberItem)) {
+                onlineList.appendChild(memberItem);
+            }
+        } else {
+            memberItem.classList.remove('member-online');
+            memberItem.classList.add('member-offline');
+            memberItem.style.opacity = '0.65';
+            if (avatarImg) avatarImg.style.filter = 'grayscale(40%)';
+            if (customStatusEl && ['En línea', 'Ausente', 'No molestar', 'Desconectado'].includes(customStatusEl.textContent.trim())) {
+                customStatusEl.textContent = 'Desconectado';
+            }
+            if (offlineList && !offlineList.contains(memberItem)) {
+                offlineList.appendChild(memberItem);
+            }
+        }
+
+        if (onlineList && onlineCountEl) {
+            const count = onlineList.querySelectorAll('.member-item').length;
+            onlineCountEl.textContent = count;
+            if (noOnlineMsg) noOnlineMsg.style.display = count === 0 ? 'block' : 'none';
+        }
+        if (offlineList && offlineCountEl) {
+            const count = offlineList.querySelectorAll('.member-item').length;
+            offlineCountEl.textContent = count;
+            if (noOfflineMsg) noOfflineMsg.style.display = count === 0 ? 'block' : 'none';
+        }
+    }
+
+    // Funciones globales para el selector flotante de estado
+    window.toggleStatusPickerMenu = function(event) {
+        if (event) event.stopPropagation();
+        const menu = document.getElementById('statusPickerMenu');
+        if (menu) {
+            menu.classList.toggle('active');
+        }
+    };
+
+    window.selectUserPresence = function(status) {
+        const menu = document.getElementById('statusPickerMenu');
+        if (menu) menu.classList.remove('active');
+
+        // Enviar por WebSocket si está abierto
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({
+                type: 'set_presence',
+                status: status
+            }));
+        }
+
+        // También persistir via HTTP API
+        fetch('/api/presence/status/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({ status: status })
+        }).catch(err => console.error('Error al actualizar presencia:', err));
+
+        // Actualizar visualmente de inmediato en avatar personal
+        const currentAvatarStatus = document.getElementById('currentUserAvatarStatus');
+        if (currentAvatarStatus) {
+            applyStatusClasses(currentAvatarStatus, status, 'status');
+        }
+    };
+
+    // Cerrar menú flotante si se hace clic fuera
+    document.addEventListener('click', () => {
+        const menu = document.getElementById('statusPickerMenu');
+        if (menu && menu.classList.contains('active')) {
+            menu.classList.remove('active');
+        }
+    });
 
     if (roomId) {
         connectWebSocket();

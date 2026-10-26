@@ -10,6 +10,7 @@ urlpatterns = [
     path('api/secrets/<uuid:secret_id>/reveal/', views.reveal_ephemeral_secret_api, name='reveal_ephemeral_secret'),
     path('api/attachments/upload/', views.upload_attachment_api, name='upload_attachment'),
     path('profile/update/', views.update_profile_view, name='update_profile'),
+    path('api/presence/status/', views.set_presence_status_api, name='set_presence_status_api'),
     path('api/users/<str:username>/profile/', views.get_user_profile_api, name='get_user_profile'),
     path('api/stickers/', views.list_stickers_api, name='list_stickers'),
     path('api/stickers/upload/', views.upload_sticker_api, name='upload_sticker'),

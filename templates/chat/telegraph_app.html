@@ -80,7 +80,7 @@
                                 {% else %}
                                     <div class="dm-avatar-placeholder">{{ p.username|make_list|first|upper }}</div>
                                 {% endif %}
-                                <span class="dm-status-indicator online"></span>
+                                <span class="dm-status-indicator {{ dm.other_status|default:'offline' }}" id="dm-status-{{ p.id }}" data-user-id="{{ p.id }}"></span>
                             {% endif %}
                         {% endfor %}
                     </div>
@@ -92,10 +92,20 @@
                                 {% endif %}
                             {% endfor %}
                         </div>
-                        <div class="dm-subtitle">
+                        <div class="dm-subtitle" id="dm-subtitle-{{ p.id }}">
                             {% for p in dm.participants.all %}
                                 {% if p != request.user %}
-                                    {{ p.profile.custom_status|default:"En línea" }}
+                                    {% if p.profile.custom_status %}
+                                        {{ p.profile.custom_status }}
+                                    {% elif dm.other_status == 'online' %}
+                                        En línea
+                                    {% elif dm.other_status == 'idle' %}
+                                        Ausente
+                                    {% elif dm.other_status == 'dnd' %}
+                                        No molestar
+                                    {% else %}
+                                        Desconectado
+                                    {% endif %}
                                 {% endif %}
                             {% endfor %}
                         </div>
@@ -127,9 +137,9 @@
         </div>
 
         <!-- Panel Inferior de Usuario (Estilo Telegraph Auténtico) -->
-        <div class="user-panel">
-            <div class="user-info" onclick="openProfileModal()" title="Haga clic para editar su perfil">
-                <div class="user-avatar-sm">
+        <div class="user-panel" style="position: relative;">
+            <div class="user-info" onclick="toggleStatusPickerMenu(event)" title="Haga clic para cambiar su estado (En línea, Ausente, No molestar)">
+                <div class="user-avatar-sm status-{{ request.user.profile.status_choice|default:'online' }}" id="currentUserAvatarStatus">
                     {% if request.user.profile.avatar %}
                         <img src="{{ request.user.profile.avatar.url }}" alt="Avatar" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">
                     {% else %}
@@ -140,7 +150,7 @@
                     <div class="user-name-tag">
                         {{ request.user.profile.get_display_name|default:request.user.username }}
                     </div>
-                    <div class="user-subtext">
+                    <div class="user-subtext" id="currentUserSubtext">
                         {{ request.user.profile.custom_status|default:"En línea" }}
                     </div>
                 </div>
@@ -150,6 +160,26 @@
                 <button type="button" class="btn-icon" id="btnUserPanelDeafen" title="Ensordecer audio (Deafen)" onclick="toggleDeafenAudio(this)">🎧</button>
                 <button type="button" class="btn-icon" onclick="openProfileModal()" title="Ajustes de Perfil">⚙️</button>
                 <a href="{% url 'logout' %}" class="btn-icon" title="Cerrar sesión en Telegraph" style="text-decoration: none;">🚪</a>
+            </div>
+
+            <!-- Menú Desplegable Flotante de Selección de Estado (Online, Idle, DND, Offline) -->
+            <div class="status-picker-menu" id="statusPickerMenu" onclick="event.stopPropagation()">
+                <div class="status-picker-item {% if request.user.profile.status_choice == 'online' or not request.user.profile.status_choice %}active{% endif %}" onclick="selectUserPresence('online')">
+                    <span class="status-circle-dot online"></span>
+                    <span>🟢 En línea</span>
+                </div>
+                <div class="status-picker-item {% if request.user.profile.status_choice == 'idle' %}active{% endif %}" onclick="selectUserPresence('idle')">
+                    <span class="status-circle-dot idle"></span>
+                    <span>🟡 Ausente</span>
+                </div>
+                <div class="status-picker-item {% if request.user.profile.status_choice == 'dnd' %}active{% endif %}" onclick="selectUserPresence('dnd')">
+                    <span class="status-circle-dot dnd"></span>
+                    <span>🔴 No molestar</span>
+                </div>
+                <div class="status-picker-item {% if request.user.profile.status_choice == 'offline' %}active{% endif %}" onclick="selectUserPresence('offline')">
+                    <span class="status-circle-dot offline"></span>
+                    <span>⚫ Invisible</span>
+                </div>
             </div>
         </div>
     </aside>
@@ -570,8 +600,8 @@
                     {% else %}
                         {{ other_user.username|make_list|first|upper }}
                     {% endif %}
-                    <!-- Luna de estado de actividad / idle -->
-                    <span class="profile-drawer-status-moon" title="Ausente / Activo"></span>
+                    <!-- Luna de estado de actividad / presencia -->
+                    <span class="profile-drawer-status-moon {{ other_status|default:'offline' }}" id="profileDrawerStatus" title="{% if other_status == 'online' %}En línea{% elif other_status == 'idle' %}Ausente{% elif other_status == 'dnd' %}No molestar{% else %}Desconectado{% endif %}"></span>
                 </div>
             </div>
 
@@ -620,27 +650,55 @@
     {% else %}
         <!-- Barra Lateral Derecha de Miembros con Avatares (Canal de texto) -->
         <aside class="members-sidebar" id="profileDrawerColumn">
-            <div class="section-label">En línea — {{ members.count }}</div>
-            {% for m in members %}
-                <div class="member-item" onclick="openUserProfileCard('{{ m.username }}')" title="Ver perfil de {{ m.profile.get_display_name|default:m.username }}">
-                    <div class="member-avatar">
-                        {% if m.profile.avatar %}
-                            <img src="{{ m.profile.avatar.url }}" alt="Avatar" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">
-                        {% else %}
-                            {{ m.username|make_list|first|upper }}
-                        {% endif %}
-                        <span class="member-status"></span>
-                    </div>
-                    <div>
-                        <div class="member-name">{{ m.profile.get_display_name|default:m.username }}</div>
-                        {% if m.profile.custom_status %}
-                            <div style="font-size: 11px; color: var(--text-muted); max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                                {{ m.profile.custom_status }}
+            <!-- Sección: EN LÍNEA -->
+            <div class="section-label" id="onlineSectionLabel">En línea — <span id="onlineCount">{{ online_members|length }}</span></div>
+            <div id="onlineMembersList">
+                {% for m in online_members %}
+                    <div class="member-item member-online" id="member-item-{{ m.id }}" data-user-id="{{ m.id }}" data-username="{{ m.username }}" onclick="openUserProfileCard('{{ m.username }}')" title="Ver perfil de {{ m.profile.get_display_name|default:m.username }}">
+                        <div class="member-avatar">
+                            {% if m.profile.avatar %}
+                                <img src="{{ m.profile.avatar.url }}" alt="Avatar" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">
+                            {% else %}
+                                {{ m.username|make_list|first|upper }}
+                            {% endif %}
+                            <span class="member-status {{ m.effective_status|default:'online' }}" id="member-status-{{ m.id }}"></span>
+                        </div>
+                        <div>
+                            <div class="member-name">{{ m.profile.get_display_name|default:m.username }}</div>
+                            <div class="member-custom-status" style="font-size: 11px; color: var(--text-muted); max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                {{ m.profile.custom_status|default:"En línea" }}
                             </div>
-                        {% endif %}
+                        </div>
                     </div>
-                </div>
-            {% endfor %}
+                {% empty %}
+                    <div id="noOnlineMsg" style="font-size: 11.5px; color: var(--text-muted); padding: 4px 8px; font-style: italic;">Nadie en línea</div>
+                {% endfor %}
+            </div>
+
+            <!-- Sección: DESCONECTADOS -->
+            <div class="section-label" id="offlineSectionLabel" style="margin-top: 16px;">Desconectados — <span id="offlineCount">{{ offline_members|length }}</span></div>
+            <div id="offlineMembersList">
+                {% for m in offline_members %}
+                    <div class="member-item member-offline" id="member-item-{{ m.id }}" data-user-id="{{ m.id }}" data-username="{{ m.username }}" onclick="openUserProfileCard('{{ m.username }}')" title="Ver perfil de {{ m.profile.get_display_name|default:m.username }}" style="opacity: 0.65;">
+                        <div class="member-avatar">
+                            {% if m.profile.avatar %}
+                                <img src="{{ m.profile.avatar.url }}" alt="Avatar" style="width:100%;height:100%;border-radius:50%;object-fit:cover; filter: grayscale(40%);">
+                            {% else %}
+                                {{ m.username|make_list|first|upper }}
+                            {% endif %}
+                            <span class="member-status offline" id="member-status-{{ m.id }}"></span>
+                        </div>
+                        <div>
+                            <div class="member-name">{{ m.profile.get_display_name|default:m.username }}</div>
+                            <div class="member-custom-status" style="font-size: 11px; color: var(--text-muted); max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                {{ m.profile.custom_status|default:"Desconectado" }}
+                            </div>
+                        </div>
+                    </div>
+                {% empty %}
+                    <div id="noOfflineMsg" style="font-size: 11.5px; color: var(--text-muted); padding: 4px 8px; font-style: italic; display: none;">No hay miembros desconectados</div>
+                {% endfor %}
+            </div>
         </aside>
     {% endif %}
 </div>
@@ -696,6 +754,16 @@
             <div class="form-group">
                 <label class="form-label">Estado Personalizado</label>
                 <input type="text" name="custom_status" class="form-control" value="{{ request.user.profile.custom_status }}" placeholder="Ej: Programando en Django 💻, En reunión 🚀">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Estado de Disponibilidad y Círculo de Presencia</label>
+                <select name="status_choice" class="form-control" style="background:#1e1f22; color:#fff; cursor: pointer;">
+                    <option value="online" {% if request.user.profile.status_choice == 'online' or not request.user.profile.status_choice %}selected{% endif %}>🟢 En línea (Disponible)</option>
+                    <option value="idle" {% if request.user.profile.status_choice == 'idle' %}selected{% endif %}>🟡 Ausente (Inactivo)</option>
+                    <option value="dnd" {% if request.user.profile.status_choice == 'dnd' %}selected{% endif %}>🔴 No molestar (Ocupado)</option>
+                    <option value="offline" {% if request.user.profile.status_choice == 'offline' %}selected{% endif %}>⚫ Invisible (Aparecer desconectado)</option>
+                </select>
             </div>
 
             <div class="form-group">

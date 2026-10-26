@@ -3,6 +3,7 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from apps.dlp.scanner import DataLossPreventionScanner
 from apps.chat.models import Message, Channel, DirectConversation
+from apps.chat.presence import PresenceService
 from django.contrib.auth.models import AnonymousUser
 from django.utils import timezone
 
@@ -21,6 +22,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         self.room_group_name = f"chat_{self.room_id}"
         self.user_group_name = f"user_{self.user.username}"
+        self.presence_group_name = "telegraph_presence"
 
         await self.channel_layer.group_add(
             self.room_group_name,
@@ -30,7 +32,38 @@ class ChatConsumer(AsyncWebsocketConsumer):
             self.user_group_name,
             self.channel_name
         )
+        await self.channel_layer.group_add(
+            self.presence_group_name,
+            self.channel_name
+        )
         await self.accept()
+
+        # Registrar conexión activa de este socket
+        was_offline = await database_sync_to_async(PresenceService.add_connection)(self.user.id, self.channel_name)
+        user_status = await database_sync_to_async(PresenceService.get_user_status)(self.user.id, is_connected=True)
+        if was_offline:
+            display_name, _ = await self.get_user_profile_info()
+            await self.channel_layer.group_send(
+                self.presence_group_name,
+                {
+                    'type': 'presence_broadcast',
+                    'payload': {
+                        'user_id': self.user.id,
+                        'username': self.user.username,
+                        'display_name': display_name,
+                        'status': user_status
+                    }
+                }
+            )
+
+        # Enviar estado actual de presencia al cliente recién conectado con sus estados detallados
+        online_ids = await database_sync_to_async(PresenceService.get_online_user_ids)()
+        user_statuses = await database_sync_to_async(PresenceService.get_all_user_statuses)(online_ids)
+        await self.send(text_data=json.dumps({
+            'type': 'presence_init',
+            'online_user_ids': list(online_ids),
+            'user_statuses': {str(k): v for k, v in user_statuses.items()}
+        }))
 
     @database_sync_to_async
     def check_user_access(self):
@@ -53,6 +86,26 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 self.user_group_name,
                 self.channel_name
             )
+        if hasattr(self, 'presence_group_name'):
+            await self.channel_layer.group_discard(
+                self.presence_group_name,
+                self.channel_name
+            )
+
+        if hasattr(self, 'user') and self.user and self.user.is_authenticated:
+            is_now_offline = await database_sync_to_async(PresenceService.remove_connection)(self.user.id, self.channel_name)
+            if is_now_offline:
+                await self.channel_layer.group_send(
+                    getattr(self, 'presence_group_name', 'telegraph_presence'),
+                    {
+                        'type': 'presence_broadcast',
+                        'payload': {
+                            'user_id': self.user.id,
+                            'username': self.user.username,
+                            'status': 'offline'
+                        }
+                    }
+                )
 
     @database_sync_to_async
     def save_chat_message(self, content, is_code=False, language="", is_sticker=False, sticker_image_url="", is_animated_sticker=False, sticker_animation_type="", sticker_lottie_json=""):
@@ -126,6 +179,15 @@ class ChatConsumer(AsyncWebsocketConsumer):
             pass
         return display, avatar
 
+    @database_sync_to_async
+    def save_user_status_choice(self, status):
+        try:
+            if hasattr(self.user, 'profile'):
+                self.user.profile.status_choice = status
+                self.user.profile.save(update_fields=['status_choice'])
+        except Exception:
+            pass
+
     async def receive(self, text_data):
         try:
             data = json.loads(text_data)
@@ -141,6 +203,29 @@ class ChatConsumer(AsyncWebsocketConsumer):
         is_animated_sticker = bool(data.get('is_animated_sticker', False))
         sticker_animation_type = data.get('sticker_animation_type', '')
         sticker_lottie_json = data.get('sticker_lottie_json', '')
+
+        # Cambio manual o automático de estado de disponibilidad (online, idle, dnd, offline)
+        if msg_type == 'set_presence':
+            status = data.get('status', 'online')
+            if status not in ['online', 'idle', 'dnd', 'offline']:
+                status = 'online'
+            await database_sync_to_async(PresenceService.set_user_status)(self.user.id, status)
+            await self.save_user_status_choice(status)
+
+            display_name, _ = await self.get_user_profile_info()
+            await self.channel_layer.group_send(
+                self.presence_group_name,
+                {
+                    'type': 'presence_broadcast',
+                    'payload': {
+                        'user_id': self.user.id,
+                        'username': self.user.username,
+                        'display_name': display_name,
+                        'status': status
+                    }
+                }
+            )
+            return
 
         # Manejo de Señalización WebRTC para Llamadas de Voz, Videollamadas y Compartir Pantalla
         if msg_type.startswith('webrtc_') or msg_type in ['call_request', 'call_response', 'call_hangup', 'voice_speaking', 'join_call', 'call_peer_state', 'channel_call_broadcast']:
@@ -260,3 +345,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
             return
 
         await self.send(text_data=json.dumps(payload))
+
+    async def presence_broadcast(self, event):
+        """Reenvío de actualizaciones de presencia en tiempo real (online/offline)."""
+        await self.send(text_data=json.dumps({
+            'type': 'presence_update',
+            **event['payload']
+        }))

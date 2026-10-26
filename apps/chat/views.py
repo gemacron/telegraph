@@ -23,6 +23,7 @@ from apps.chat.models import (
     Workspace, Channel, DirectConversation, Message, 
     EphemeralSecret, Attachment, Sticker, UserProfile
 )
+from apps.chat.presence import PresenceService
 from apps.dlp.scanner import DataLossPreventionScanner
 from apps.audit.services import AuditService
 
@@ -100,12 +101,31 @@ def channel_view(request, channel_id):
         expires_at__gt=timezone.now()
     ).select_related('author')
 
-    # Miembros visibles para este canal
+    # Miembros visibles para este canal y estado de presencia
+    online_user_ids = PresenceService.get_online_user_ids()
+    online_user_ids.add(request.user.id)
+
     if channel.is_general:
-        members = workspace.members.all()
+        members_qs = workspace.members.select_related('profile').all()
     else:
         from django.db.models import Q
-        members = User.objects.filter(Q(channel_memberships=channel) | Q(managed_channels=channel)).distinct()
+        members_qs = User.objects.filter(Q(channel_memberships=channel) | Q(managed_channels=channel)).distinct().select_related('profile')
+
+    user_status_map = {}
+    for m in members_qs:
+        is_conn = m.id in online_user_ids
+        st = PresenceService.get_user_status(m.id, is_connected=is_conn)
+        m.effective_status = st
+        user_status_map[str(m.id)] = st
+
+    online_members = [m for m in members_qs if m.effective_status != 'offline']
+    offline_members = [m for m in members_qs if m.effective_status == 'offline']
+
+    for dm in direct_conversations:
+        other_p = dm.get_other_participant(request.user)
+        if other_p:
+            dm.other_status = PresenceService.get_user_status(other_p.id, is_connected=(other_p.id in online_user_ids))
+            user_status_map[str(other_p.id)] = dm.other_status
 
     stickers = Sticker.objects.all()
 
@@ -119,7 +139,12 @@ def channel_view(request, channel_id):
         'direct_conversations': direct_conversations,
         'messages': messages,
         'active_secrets': active_secrets,
-        'members': members,
+        'members': members_qs,
+        'online_members': online_members,
+        'offline_members': offline_members,
+        'online_user_ids': list(online_user_ids),
+        'user_status_map': user_status_map,
+        'user_status_json': json.dumps(user_status_map),
         'stickers': stickers,
         'room_id': str(channel.id),
         'is_direct': False,
@@ -146,15 +171,40 @@ def dm_view(request, conversation_id):
 
     is_workspace_admin = request.user.profile.is_workspace_admin() if hasattr(request.user, 'profile') else request.user.is_superuser
 
+    online_user_ids = PresenceService.get_online_user_ids()
+    online_user_ids.add(request.user.id)
+
+    user_status_map = {}
+    members_all = workspace.members.select_related('profile').all() if workspace else []
+    for m in members_all:
+        is_conn = m.id in online_user_ids
+        st = PresenceService.get_user_status(m.id, is_connected=is_conn)
+        m.effective_status = st
+        user_status_map[str(m.id)] = st
+
+    for dm in direct_conversations:
+        other_p = dm.get_other_participant(request.user)
+        if other_p:
+            dm.other_status = PresenceService.get_user_status(other_p.id, is_connected=(other_p.id in online_user_ids))
+            user_status_map[str(other_p.id)] = dm.other_status
+
+    other_status = PresenceService.get_user_status(other_user.id, is_connected=(other_user.id in online_user_ids)) if other_user else 'offline'
+    other_user_is_online = (other_status != 'offline')
+
     context = {
         'workspace': workspace,
         'active_conversation': conversation,
         'other_user': other_user,
+        'other_status': other_status,
+        'other_user_is_online': other_user_is_online,
         'channels': channels,
         'direct_conversations': direct_conversations,
         'messages': messages,
         'active_secrets': active_secrets,
-        'members': workspace.members.all() if workspace else [],
+        'members': members_all,
+        'online_user_ids': list(online_user_ids),
+        'user_status_map': user_status_map,
+        'user_status_json': json.dumps(user_status_map),
         'room_id': str(conversation.id),
         'is_direct': True,
         'is_channel_manager': False,
@@ -851,6 +901,26 @@ def disable_2fa_view(request):
     return JsonResponse({'status': 'success', 'message': 'Doble factor desactivado exitosamente.'})
 
 def logout_view(request):
+    if request.user.is_authenticated:
+        u_id = request.user.id
+        u_name = request.user.username
+        PresenceService.force_offline(u_id)
+        try:
+            channel_layer = get_channel_layer()
+            if channel_layer:
+                async_to_sync(channel_layer.group_send)(
+                    "telegraph_presence",
+                    {
+                        'type': 'presence_broadcast',
+                        'payload': {
+                            'user_id': u_id,
+                            'username': u_name,
+                            'status': 'offline'
+                        }
+                    }
+                )
+        except Exception:
+            pass
     logout(request)
     return redirect('login')
 
@@ -876,6 +946,28 @@ def update_profile_view(request):
     profile.custom_status = custom_status[:120]
     if banner_color and banner_color.startswith('#'):
         profile.banner_color = banner_color[:7]
+
+    status_choice = request.POST.get('status_choice', '').strip()
+    if status_choice in ['online', 'idle', 'dnd', 'offline']:
+        profile.status_choice = status_choice
+        PresenceService.set_user_status(user.id, status_choice)
+        try:
+            channel_layer = get_channel_layer()
+            if channel_layer:
+                async_to_sync(channel_layer.group_send)(
+                    "telegraph_presence",
+                    {
+                        'type': 'presence_broadcast',
+                        'payload': {
+                            'user_id': user.id,
+                            'username': user.username,
+                            'display_name': profile.get_display_name(),
+                            'status': status_choice
+                        }
+                    }
+                )
+        except Exception:
+            pass
 
     # Procesamiento y validación segura de Avatar con Pillow
     if avatar_file:
@@ -923,6 +1015,41 @@ def update_profile_view(request):
         })
 
     return redirect(request.META.get('HTTP_REFERER', 'index'))
+
+@login_required
+@require_POST
+def set_presence_status_api(request):
+    """API rápida para alternar el estado de disponibilidad ('online', 'idle', 'dnd', 'offline')."""
+    try:
+        data = json.loads(request.body.decode('utf-8'))
+    except Exception:
+        data = request.POST
+    status = data.get('status', 'online')
+    if status not in ['online', 'idle', 'dnd', 'offline']:
+        status = 'online'
+    profile = request.user.profile
+    profile.status_choice = status
+    profile.save(update_fields=['status_choice'])
+    PresenceService.set_user_status(request.user.id, status)
+
+    try:
+        channel_layer = get_channel_layer()
+        if channel_layer:
+            async_to_sync(channel_layer.group_send)(
+                "telegraph_presence",
+                {
+                    'type': 'presence_broadcast',
+                    'payload': {
+                        'user_id': request.user.id,
+                        'username': request.user.username,
+                        'display_name': profile.get_display_name(),
+                        'status': status
+                    }
+                }
+            )
+    except Exception:
+        pass
+    return JsonResponse({'status': 'success', 'presence_status': status})
 
 @login_required
 @require_GET
