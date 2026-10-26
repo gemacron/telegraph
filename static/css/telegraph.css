@@ -482,58 +482,171 @@ html, body {
     gap: 12px;
 }
 
-/* Lista de Mensajes */
+/* Lista de Mensajes con Burbujas Diferenciadas Estilo Telegram */
 .messages-container {
     flex: 1;
     overflow-y: auto;
-    padding: 16px;
+    padding: 16px 20px;
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 12px;
 }
 
 .message-card {
     display: flex;
-    gap: 14px;
-    padding: 4px 8px;
-    border-radius: 4px;
-    transition: background 0.1s ease;
+    gap: 10px;
+    padding: 9px 14px;
+    border-radius: 14px;
+    max-width: 76%;
+    position: relative;
+    box-sizing: border-box;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    word-break: break-word;
 }
 
-.message-card:hover {
-    background-color: rgba(0, 0, 0, 0.08);
+/* 1. MENSAJES ENVIADOS POR MÍ (Outgoing - Derecha con fondo Azul Telegram) */
+.message-card.msg-outgoing {
+    align-self: flex-end;
+    flex-direction: row-reverse;
+    background: linear-gradient(135deg, #2b5278 0%, #1d3b5c 100%);
+    border: 1px solid rgba(88, 166, 255, 0.35);
+    border-bottom-right-radius: 3px;
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.3), 0 0 10px rgba(43, 82, 120, 0.35);
 }
 
+.message-card.msg-outgoing:hover {
+    background: linear-gradient(135deg, #325e8a 0%, #22476f 100%);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35), 0 0 14px rgba(88, 166, 255, 0.25);
+}
+
+.message-card.msg-outgoing .msg-avatar {
+    background: linear-gradient(135deg, #2f81f7 0%, #1f6feb 100%);
+    border: 2px solid rgba(121, 192, 255, 0.6);
+    box-shadow: 0 2px 6px rgba(31, 111, 235, 0.4);
+    color: #ffffff;
+}
+
+.message-card.msg-outgoing .msg-meta {
+    justify-content: flex-end;
+}
+
+.message-card.msg-outgoing .msg-author {
+    color: #79c0ff;
+    font-weight: 700;
+}
+
+.message-card.msg-outgoing .msg-author-self {
+    background: rgba(121, 192, 255, 0.2);
+    border: 1px solid rgba(121, 192, 255, 0.45);
+    padding: 1px 7px;
+    border-radius: 10px;
+    font-size: 11.5px;
+    color: #a5d6ff;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+}
+
+.message-card.msg-outgoing .msg-time {
+    color: rgba(220, 235, 255, 0.7);
+    font-size: 11px;
+}
+
+.message-card.msg-outgoing .msg-content {
+    color: #ffffff;
+    font-size: 14.5px;
+    line-height: 1.45;
+}
+
+.message-card.msg-outgoing .msg-content a {
+    color: #a5d6ff;
+    text-decoration: underline;
+}
+
+/* Check doble de mensaje enviado estilo Telegram */
+.msg-status-check {
+    color: #56d364;
+    font-size: 11px;
+    font-weight: 700;
+    margin-left: 4px;
+    user-select: none;
+    letter-spacing: -1.5px;
+}
+
+/* 2. MENSAJES RECIBIDOS (Incoming - Izquierda con fondo Oscuro Elegante) */
+.message-card.msg-incoming {
+    align-self: flex-start;
+    flex-direction: row;
+    background: linear-gradient(135deg, #212429 0%, #191b1e 100%);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-bottom-left-radius: 3px;
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.35);
+}
+
+.message-card.msg-incoming:hover {
+    background: linear-gradient(135deg, #272a30 0%, #1e2024 100%);
+    border-color: rgba(255, 255, 255, 0.16);
+}
+
+.message-card.msg-incoming .msg-avatar {
+    background: linear-gradient(135deg, #238636 0%, #2ea043 100%);
+    border: 2px solid rgba(63, 185, 80, 0.5);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    color: #ffffff;
+}
+
+.message-card.msg-incoming .msg-author {
+    color: #56d364;
+    font-weight: 700;
+}
+
+.message-card.msg-incoming .msg-time {
+    color: #8b949e;
+    font-size: 11px;
+}
+
+.message-card.msg-incoming .msg-content {
+    color: #e6edf3;
+    font-size: 14.5px;
+    line-height: 1.45;
+}
+
+/* Excepciones de burbuja para stickers directos */
+.message-card:has(.msg-sticker-wrapper) {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 4px !important;
+}
+
+/* Elementos comunes del mensaje */
 .msg-avatar {
-    width: 40px;
-    height: 40px;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
-    background-color: var(--accent-blurple);
     display: flex;
     align-items: center;
     justify-content: center;
     font-weight: 700;
-    font-size: 16px;
-    color: #ffffff;
+    font-size: 15px;
     flex-shrink: 0;
     user-select: none;
+    overflow: hidden;
 }
 
 .msg-body {
     flex: 1;
+    min-width: 0;
 }
 
 .msg-meta {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     gap: 8px;
     margin-bottom: 4px;
 }
 
 .msg-author {
-    font-size: 14.5px;
-    font-weight: 600;
-    color: #ffffff;
+    font-size: 13.5px;
     cursor: pointer;
 }
 
@@ -542,17 +655,30 @@ html, body {
 }
 
 .msg-time {
-    font-size: 11.5px;
-    color: var(--text-muted);
+    font-size: 11px;
 }
 
 .msg-content {
     font-size: 14.5px;
     line-height: 1.45;
-    color: var(--text-secondary);
     word-break: break-word;
     user-select: text;
 }
+
+/* Paleta de colores distintivos de usuarios estilo Telegram */
+.msg-author-color-0 { color: #56d364 !important; } /* Verde Esmeralda */
+.msg-author-color-1 { color: #58a6ff !important; } /* Azul Cian */
+.msg-author-color-2 { color: #d2a8ff !important; } /* Violeta */
+.msg-author-color-3 { color: #ffa657 !important; } /* Naranja Ámbar */
+.msg-author-color-4 { color: #ff9bce !important; } /* Rosa */
+.msg-author-color-5 { color: #56e3d7 !important; } /* Turquesa */
+
+.msg-avatar-color-0 { background: linear-gradient(135deg, #1b6329, #238636) !important; border: 2px solid rgba(86, 211, 100, 0.6) !important; }
+.msg-avatar-color-1 { background: linear-gradient(135deg, #1f508a, #2b6cb0) !important; border: 2px solid rgba(88, 166, 255, 0.6) !important; }
+.msg-avatar-color-2 { background: linear-gradient(135deg, #62369c, #8957e5) !important; border: 2px solid rgba(210, 168, 255, 0.6) !important; }
+.msg-avatar-color-3 { background: linear-gradient(135deg, #8a4115, #bd561b) !important; border: 2px solid rgba(255, 166, 87, 0.6) !important; }
+.msg-avatar-color-4 { background: linear-gradient(135deg, #8c255c, #bf3980) !important; border: 2px solid rgba(255, 155, 206, 0.6) !important; }
+.msg-avatar-color-5 { background: linear-gradient(135deg, #165b55, #228b82) !important; border: 2px solid rgba(86, 227, 215, 0.6) !important; }
 
 /* Bloques de Código Formateado */
 .code-container {

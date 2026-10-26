@@ -345,10 +345,33 @@ document.addEventListener('DOMContentLoaded', () => {
         if (dlpAlert) dlpAlert.style.display = 'none';
     }
 
-    // Renderizar mensaje en la interfaz con soporte para avatares reales
+    // Helper para asignar color consistente según el username (Estilo Telegram)
+    function getUserColorIndex(username) {
+        if (!username) return 0;
+        let hash = 0;
+        for (let i = 0; i < username.length; i++) {
+            hash = username.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        return Math.abs(hash) % 6;
+    }
+
+    // Renderizar mensaje en la interfaz con soporte para burbujas diferenciadas estilo Telegram
     function appendChatMessage(msg) {
         const card = document.createElement('div');
-        card.className = 'message-card';
+        const sender = msg.sender || msg.author || '';
+        const isMe = (sender === currentUser);
+        card.className = `message-card ${isMe ? 'msg-outgoing' : 'msg-incoming'}`;
+        card.id = `msg-${msg.id || Date.now()}`;
+        if (!isMe) {
+            card.setAttribute('data-author', sender);
+        }
+
+        const colorIdx = getUserColorIndex(sender);
+        const authorColorClass = isMe ? '' : `msg-author-color-${colorIdx}`;
+        const avatarColorClass = isMe ? '' : `msg-avatar-color-${colorIdx}`;
+
+        const authorDisplay = isMe ? '<span class="msg-author-self">Tú</span>' : escapeHtml(msg.display_name || sender);
+        const checkHtml = isMe ? '<span class="msg-status-check" title="Enviado">✓✓</span>' : '';
 
         let innerContent = '';
         let pendingLottieId = null;
@@ -404,14 +427,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const avatarHtml = msg.avatar_url 
             ? `<img src="${msg.avatar_url}" alt="Avatar" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`
-            : msg.sender.charAt(0).toUpperCase();
+            : escapeHtml(sender.charAt(0).toUpperCase());
 
         card.innerHTML = `
-            <div class="msg-avatar" onclick="openUserProfileCard('${escapeHtml(msg.sender)}')" style="cursor: pointer;">${avatarHtml}</div>
+            <div class="msg-avatar ${avatarColorClass}" onclick="openUserProfileCard('${escapeHtml(sender)}')" style="cursor: pointer;">${avatarHtml}</div>
             <div class="msg-body">
                 <div class="msg-meta">
-                    <span class="msg-author" onclick="openUserProfileCard('${escapeHtml(msg.sender)}')">${escapeHtml(msg.display_name || msg.sender)}</span>
+                    <span class="msg-author ${authorColorClass}" onclick="openUserProfileCard('${escapeHtml(sender)}')">${authorDisplay}</span>
                     <span class="msg-time">${msg.created_at || 'ahora'}</span>
+                    ${checkHtml}
                 </div>
                 ${innerContent}
             </div>
@@ -2040,6 +2064,25 @@ document.addEventListener('DOMContentLoaded', () => {
             alert('Error de conexión.');
         }
     };
+
+    // Inicializar notificaciones de escritorio en pantalla
+    // Aplicar colores característicos a mensajes existentes al cargar la página
+    function applyUserColorsToExistingMessages() {
+        document.querySelectorAll('.msg-incoming').forEach(card => {
+            const author = card.getAttribute('data-author');
+            if (!author) return;
+            const colorIdx = getUserColorIndex(author);
+            const authorEl = card.querySelector('.msg-author');
+            const avatarEl = card.querySelector('.msg-avatar');
+            if (authorEl && !authorEl.querySelector('.msg-author-self')) {
+                authorEl.classList.add(`msg-author-color-${colorIdx}`);
+            }
+            if (avatarEl && !avatarEl.querySelector('img')) {
+                avatarEl.classList.add(`msg-avatar-color-${colorIdx}`);
+            }
+        });
+    }
+    applyUserColorsToExistingMessages();
 
     // Inicializar notificaciones de escritorio en pantalla
     if ("Notification" in window) {

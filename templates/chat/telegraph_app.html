@@ -413,7 +413,7 @@
                     </div>
                 {% endifchanged %}
 
-                <div class="message-card">
+                <div class="message-card {% if msg.author == request.user %}msg-outgoing{% else %}msg-incoming{% endif %}" id="msg-{{ msg.id }}" data-author="{{ msg.author.username }}">
                     <div class="msg-avatar" onclick="openUserProfileCard('{{ msg.author.username }}')" style="cursor: pointer;">
                         {% if msg.author.profile.avatar %}
                             <img src="{{ msg.author.profile.avatar.url }}" alt="Avatar" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">
@@ -424,9 +424,16 @@
                     <div class="msg-body">
                         <div class="msg-meta">
                             <span class="msg-author" onclick="openUserProfileCard('{{ msg.author.username }}')">
-                                {{ msg.author.profile.get_display_name|default:msg.author.username }}
+                                {% if msg.author == request.user %}
+                                    <span class="msg-author-self">Tú</span>
+                                {% else %}
+                                    {{ msg.author.profile.get_display_name|default:msg.author.username }}
+                                {% endif %}
                             </span>
-                            <span class="msg-time">{{ msg.created_at|date:"d/m/Y H:i" }}</span>
+                            <span class="msg-time">{{ msg.created_at|date:"H:i" }}</span>
+                            {% if msg.author == request.user %}
+                                <span class="msg-status-check" title="Enviado">✓✓</span>
+                            {% endif %}
                         </div>
 
                         {% if msg.is_sticker and msg.sticker_image_url %}
