@@ -387,9 +387,15 @@
                                     ⏱️ Expirará automáticamente a las {{ secret.expires_at|date:"H:i:s" }} UTC.
                                 {% endif %}
                             </div>
-                            <button class="btn-reveal-secret" onclick="revealSecret('{{ secret.id }}')">
-                                <span>🔓 Revelar Secreto</span>
-                            </button>
+                            {% if secret.author == request.user %}
+                                <div class="secret-author-notice" style="display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: #ffb86c; background: rgba(255, 184, 108, 0.1); padding: 7px 14px; border-radius: 6px; border: 1px dashed rgba(255, 184, 108, 0.35); font-weight: 600;">
+                                    🔒 Secreto confidencial enviado • Solo el receptor puede abrirlo y destruirlo
+                                </div>
+                            {% else %}
+                                <button class="btn-reveal-secret" onclick="revealSecret('{{ secret.id }}')">
+                                    <span>🔓 Revelar Secreto</span>
+                                </button>
+                            {% endif %}
                         </div>
                     </div>
                 </div>

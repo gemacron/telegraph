@@ -68,6 +68,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
+            // 3.1 Notificación de secreto destruido / purgado en la sala
+            if (data.type === 'secret_burned') {
+                handleSecretBurned(data.secret_id, data.burner_username);
+                return;
+            }
+
             // 4. Inicialización y actualización de presencia en tiempo real
             if (data.type === 'presence_init') {
                 handlePresenceInit(data.online_user_ids || [], data.user_statuses || {});
@@ -496,6 +502,15 @@ document.addEventListener('DOMContentLoaded', () => {
     function appendSecretCard(secret) {
         const card = document.createElement('div');
         card.className = 'message-card';
+        const isAuthor = (secret.author === currentUser);
+        const actionButtonHtml = isAuthor
+            ? `<div class="secret-author-notice" style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #ffb86c; background: rgba(255, 184, 108, 0.1); padding: 6px 12px; border-radius: 6px; border: 1px dashed rgba(255, 184, 108, 0.35); font-weight: 600;">
+                   🔒 Secreto enviado • Solo el receptor puede abrirlo y destruirlo
+               </div>`
+            : `<button class="btn-reveal-secret" onclick="revealSecret('${secret.secret_id}')">
+                   <span>🔓 Revelar Secreto</span>
+               </button>`;
+
         card.innerHTML = `
             <div class="msg-avatar" style="background: rgba(242, 63, 67, 0.2); border: 1px solid rgba(242, 63, 67, 0.4);">💣</div>
             <div class="msg-body">
@@ -515,9 +530,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         Este mensaje contiene datos sensibles cifrados en el servidor.
                         ${secret.burn_on_read ? '⚠️ <strong>Se destruirá de forma irreversible</strong> tras el primer acceso.' : '⏱️ Expirará automáticamente a las ' + secret.expires_at}
                     </div>
-                    <button class="btn-reveal-secret" onclick="revealSecret('${secret.secret_id}')">
-                        <span>🔓 Revelar Secreto</span>
-                    </button>
+                    ${actionButtonHtml}
                 </div>
             </div>
         `;
@@ -593,12 +606,32 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }, 1000);
             } else {
-                box.innerHTML = `<div class="secret-desc" style="color: #ff7b72;">❌ ${data.error}</div>`;
+                box.innerHTML = `<div class="secret-desc" style="color: #ff7b72; font-weight: 600; padding: 6px 0;">🚫 ${escapeHtml(data.error || 'Acceso denegado.')}</div>`;
             }
         } catch (err) {
-            box.innerHTML = `<div class="secret-desc" style="color: #ff7b72;">❌ Error al conectar con el servidor.</div>`;
+            box.innerHTML = `<div class="secret-desc" style="color: #ff7b72; font-weight: 600; padding: 6px 0;">🚫 Error al conectar con el servidor.</div>`;
         }
     };
+
+    // Manejo de la autodestrucción remota sincronizada (cuando el receptor abre el secreto)
+    function handleSecretBurned(secretId, burnerUsername) {
+        const box = document.getElementById(`secretBox_${secretId}`);
+        if (!box) return;
+        if (box.classList.contains('secret-burned-card')) return;
+
+        triggerSecretExplosion(box, () => {
+            box.classList.add('secret-burned-card');
+            box.innerHTML = `
+                <div class="secret-header" style="color: #ff7b72;">
+                    <span>💥 ¡BOOM! SECRETO PURGADO</span>
+                </div>
+                <div class="secret-desc" style="color: #949ba4; margin-bottom: 0;">
+                    💨 El contenido ha sido abierto por el destinatario (@${escapeHtml(burnerUsername)}) y autodestruido permanentemente de PostgreSQL.
+                </div>
+            `;
+        });
+    }
+    window.handleSecretBurned = handleSecretBurned;
 
     // Funciones de utilidad
     window.copyCode = function(button) {

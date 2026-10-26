@@ -333,6 +333,13 @@ class ChatConsumer(AsyncWebsocketConsumer):
             **event['payload']
         }))
 
+    async def secret_burned_notification(self, event):
+        """Notificación cuando un secreto efímero es abierto y purgado."""
+        await self.send(text_data=json.dumps({
+            'type': 'secret_burned',
+            **event['payload']
+        }))
+
     async def webrtc_forward(self, event):
         """Reenvío seguro de paquetes de señalización WebRTC (SDP, ICE, Call states)."""
         payload = event['payload']

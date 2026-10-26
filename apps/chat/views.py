@@ -555,7 +555,9 @@ def create_ephemeral_secret_api(request):
 def reveal_ephemeral_secret_api(request, secret_id):
     """
     Revela un secreto efímero y ejecuta la autodestrucción atómica (Burn-After-Reading).
-    Una vez revelado, se borra irreversiblemente de PostgreSQL.
+    Regla de seguridad estricta: Solo los destinatarios pueden abrir el secreto.
+    Ni siquiera el usuario que lo creó tiene autorización para revelarlo.
+    Una vez revelado, se borra física e irreversiblemente de PostgreSQL.
     """
     secret = EphemeralSecret.objects.filter(id=secret_id).first()
     if not secret or secret.is_destroyed or secret.is_expired():
@@ -563,8 +565,27 @@ def reveal_ephemeral_secret_api(request, secret_id):
             'error': 'Este secreto ya ha sido destruido o expiró permanentemente por políticas de seguridad.'
         }, status=410)
 
+    # 1. Regla de seguridad: Ni siquiera el autor/creador puede abrir el secreto enviado
+    if secret.author == request.user:
+        return JsonResponse({
+            'error': 'Por políticas de seguridad confidencial, los secretos efímeros solo pueden ser abiertos por el destinatario. El creador no puede abrirlo.'
+        }, status=403)
+
+    # 2. Verificar que el usuario solicitante es un destinatario legítimo del chat
+    if secret.direct_conversation:
+        if not secret.direct_conversation.participants.filter(id=request.user.id).exists():
+            return JsonResponse({
+                'error': 'No tienes permisos para acceder a este secreto confidencial.'
+            }, status=403)
+    elif secret.channel:
+        if not secret.channel.can_view(request.user):
+            return JsonResponse({
+                'error': 'No tienes permisos para ver el canal de este secreto.'
+            }, status=403)
+
     author_username = secret.author.username
     secret_title = secret.title
+    room_id = secret.channel_id or (secret.direct_conversation_id if secret.direct_conversation else None)
 
     # Acceso atómico y purga
     payload_encrypted, destroyed = secret.access_and_burn()
@@ -572,6 +593,21 @@ def reveal_ephemeral_secret_api(request, secret_id):
         return JsonResponse({
             'error': 'El secreto ya no está disponible.'
         }, status=410)
+
+    # Si fue purgado por Burn-On-Read, notificar por WebSocket para detonar la tarjeta en todos los clientes
+    if destroyed and room_id:
+        channel_layer = get_channel_layer()
+        if channel_layer:
+            async_to_sync(channel_layer.group_send)(
+                f"chat_{room_id}",
+                {
+                    'type': 'secret_burned_notification',
+                    'payload': {
+                        'secret_id': str(secret_id),
+                        'burner_username': request.user.username,
+                    }
+                }
+            )
 
     # Registro de auditoría del acceso y autodestrucción
     AuditService.log(
