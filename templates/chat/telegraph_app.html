@@ -374,17 +374,21 @@
                         <div class="secret-card" id="secretBox_{{ secret.id }}">
                             <div class="secret-header">
                                 <span>🛡️ {{ secret.title }}</span>
+                                <span class="secret-badge-bomb">💣 AUTODESTRUCCIÓN ACTIVA</span>
+                            </div>
+                            <div class="secret-fuse-wrapper">
+                                <div class="secret-fuse-bar"></div>
                             </div>
                             <div class="secret-desc">
                                 Este mensaje contiene datos confidenciales cifrados en el servidor.
                                 {% if secret.burn_on_read %}
-                                    Se destruirá de forma permanente e irreversible de PostgreSQL tras el primer acceso.
+                                    ⚠️ <strong>Se destruirá de forma permanente e irreversible</strong> de PostgreSQL tras el primer acceso.
                                 {% else %}
-                                    Expirará automáticamente a las {{ secret.expires_at|date:"H:i:s" }} UTC.
+                                    ⏱️ Expirará automáticamente a las {{ secret.expires_at|date:"H:i:s" }} UTC.
                                 {% endif %}
                             </div>
                             <button class="btn-reveal-secret" onclick="revealSecret('{{ secret.id }}')">
-                                🔓 Revelar Secreto
+                                <span>🔓 Revelar Secreto</span>
                             </button>
                         </div>
                     </div>

@@ -408,36 +408,130 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Renderizar tarjeta de Secreto Efímero Autodestructible
+    // Motor de Efecto de Explosión de Partículas, Humo y Onda Expansiva (Bomba de Tiempo)
+    function triggerSecretExplosion(targetEl, onComplete, isMini = false) {
+        if (!targetEl) return;
+
+        // Sacudida visual de la tarjeta
+        targetEl.classList.remove('secret-exploding');
+        void targetEl.offsetWidth; // forzar reflow
+        targetEl.classList.add('secret-exploding');
+
+        const overlay = document.createElement('div');
+        overlay.className = 'tg-explosion-overlay';
+        overlay.style.position = 'absolute';
+        overlay.style.top = '50%';
+        overlay.style.left = '50%';
+        overlay.style.transform = 'translate(-50%, -50%)';
+        overlay.style.width = '0px';
+        overlay.style.height = '0px';
+
+        // 1. Onda Expansiva (Shockwave)
+        const shockwave = document.createElement('div');
+        shockwave.className = 'tg-shockwave';
+        overlay.appendChild(shockwave);
+
+        // 2. Chispas de fuego y partículas incandescentes
+        const particleCount = isMini ? 16 : 38;
+        const colors = ['#ff3b30', '#ff9500', '#ffcc00', '#ffffff', '#ff2d55', '#ff5722'];
+        
+        for (let i = 0; i < particleCount; i++) {
+            const p = document.createElement('div');
+            p.className = 'tg-spark-particle';
+            
+            const angle = Math.random() * Math.PI * 2;
+            const dist = (isMini ? 40 : 80) + Math.random() * (isMini ? 60 : 130);
+            const dx = Math.cos(angle) * dist + 'px';
+            const dy = Math.sin(angle) * dist + 'px';
+            const size = (3 + Math.random() * (isMini ? 5 : 8)) + 'px';
+            const dur = (0.45 + Math.random() * 0.4) + 's';
+            const color = colors[Math.floor(Math.random() * colors.length)];
+
+            p.style.width = size;
+            p.style.height = size;
+            p.style.backgroundColor = color;
+            p.style.boxShadow = `0 0 10px ${color}`;
+            p.style.setProperty('--dx', dx);
+            p.style.setProperty('--dy', dy);
+            p.style.setProperty('--duration', dur);
+
+            overlay.appendChild(p);
+        }
+
+        // 3. Emojis voladores de detonación (💥, 🔥, ⚡, ✨, 💣, 💨)
+        if (!isMini) {
+            const emojis = ['💥', '🔥', '⚡', '✨', '💣', '💨', '💥'];
+            emojis.forEach((em) => {
+                const ep = document.createElement('div');
+                ep.className = 'tg-emoji-blast-particle';
+                ep.textContent = em;
+
+                const angle = Math.random() * Math.PI * 2;
+                const dist = 50 + Math.random() * 110;
+                const dx = Math.cos(angle) * dist + 'px';
+                const dy = (Math.sin(angle) * dist - 25) + 'px';
+                const dur = (0.55 + Math.random() * 0.35) + 's';
+                const rot = (Math.random() * 360 - 180) + 'deg';
+
+                ep.style.setProperty('--dx', dx);
+                ep.style.setProperty('--dy', dy);
+                ep.style.setProperty('--rot', rot);
+                ep.style.setProperty('--duration', dur);
+
+                overlay.appendChild(ep);
+            });
+        }
+
+        targetEl.appendChild(overlay);
+
+        setTimeout(() => {
+            if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+            targetEl.classList.remove('secret-exploding');
+            if (typeof onComplete === 'function') onComplete();
+        }, 750);
+    }
+    window.triggerSecretExplosion = triggerSecretExplosion;
+
+    // Renderizar tarjeta de Secreto Efímero Autodestructible con Animación de Entrada Explosiva
     function appendSecretCard(secret) {
         const card = document.createElement('div');
         card.className = 'message-card';
         card.innerHTML = `
-            <div class="msg-avatar">🔒</div>
+            <div class="msg-avatar" style="background: rgba(242, 63, 67, 0.2); border: 1px solid rgba(242, 63, 67, 0.4);">💣</div>
             <div class="msg-body">
                 <div class="msg-meta">
                     <span class="msg-author">${escapeHtml(secret.author)}</span>
                     <span class="msg-time">${secret.created_at || 'ahora'}</span>
                 </div>
-                <div class="secret-card" id="secretBox_${secret.secret_id}">
+                <div class="secret-card secret-entry-blast" id="secretBox_${secret.secret_id}">
                     <div class="secret-header">
                         <span>🛡️ ${escapeHtml(secret.title)}</span>
+                        <span class="secret-badge-bomb">💣 AUTODESTRUCCIÓN ACTIVA</span>
+                    </div>
+                    <div class="secret-fuse-wrapper">
+                        <div class="secret-fuse-bar"></div>
                     </div>
                     <div class="secret-desc">
-                        Este mensaje contiene datos sensibles cifrados.
-                        ${secret.burn_on_read ? 'Se destruirá de forma permanente e irreversible tras el primer acceso.' : 'Expirará automáticamente a las ' + secret.expires_at}
+                        Este mensaje contiene datos sensibles cifrados en el servidor.
+                        ${secret.burn_on_read ? '⚠️ <strong>Se destruirá de forma irreversible</strong> tras el primer acceso.' : '⏱️ Expirará automáticamente a las ' + secret.expires_at}
                     </div>
                     <button class="btn-reveal-secret" onclick="revealSecret('${secret.secret_id}')">
-                        🔓 Revelar Secreto
+                        <span>🔓 Revelar Secreto</span>
                     </button>
                 </div>
             </div>
         `;
         messagesContainer.appendChild(card);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+        // Detonar efecto inicial de ignición en la tarjeta al llegar al chat
+        const secretBox = card.querySelector('.secret-card');
+        if (secretBox) {
+            triggerSecretExplosion(secretBox, null, true);
+        }
     }
 
-    // API: Revelar y Autodestruir Secreto
+    // API: Revelar y Autodestruir Secreto con Explosión
     window.revealSecret = async function(secretId) {
         const box = document.getElementById(`secretBox_${secretId}`);
         if (!box) return;
@@ -453,15 +547,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const data = await res.json();
             if (res.ok) {
+                // Si fue purgado de la base de datos por política Burn-On-Read, disparar explosión
+                if (data.was_destroyed) {
+                    triggerSecretExplosion(box);
+                }
+
                 box.innerHTML = `
                     <div class="secret-header" style="color: #a6e3a1;">
                         <span>🔓 DATO CONFIDENCIAL REVELADO</span>
+                        <span class="secret-badge-bomb" style="background: rgba(166, 227, 161, 0.15); border-color: #a6e3a1; color: #a6e3a1;">💣 CUENTA REGRESIVA</span>
                     </div>
                     <div class="secret-revealed-box">
                         ${escapeHtml(data.content)}
                     </div>
                     <div class="secret-timer-alert">
-                        ⚠️ ${data.message} Este contenido se cerrará automáticamente en <span id="timer_${secretId}">30</span>s.
+                        ⏳ Este contenido se autodestruirá permanentemente en <span id="timer_${secretId}" style="color: #ff3b30; font-size: 15px; font-weight: 800; margin: 0 4px;">30</span>s.
                     </div>
                 `;
 
@@ -470,9 +570,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 const interval = setInterval(() => {
                     remaining--;
                     if (timerEl) timerEl.textContent = remaining;
+
+                    // Advertencia de chisporroteo a los 3 segundos finales
+                    if (remaining === 3) {
+                        triggerSecretExplosion(box, null, true);
+                    }
+
                     if (remaining <= 0) {
                         clearInterval(interval);
-                        box.innerHTML = `<div class="secret-desc">🗑️ El secreto ha sido purgado y cerrado.</div>`;
+                        // ¡GRAN DETONACIÓN FINAL AL EXPIRAR!
+                        triggerSecretExplosion(box, () => {
+                            box.classList.add('secret-burned-card');
+                            box.innerHTML = `
+                                <div class="secret-header" style="color: #ff7b72;">
+                                    <span>💥 ¡BOOM! SECRETO PURGADO</span>
+                                </div>
+                                <div class="secret-desc" style="color: #949ba4; margin-bottom: 0;">
+                                    💨 El contenido ha sido destruido irreversiblemente y eliminado de la memoria y de PostgreSQL.
+                                </div>
+                            `;
+                        });
                     }
                 }, 1000);
             } else {
@@ -530,14 +647,20 @@ document.addEventListener('DOMContentLoaded', () => {
         codeModal.style.display = 'none';
     };
 
-    // Envío de Secreto Efímero
+    // Envío de Secreto Efímero con Efecto de Detonación / Ignición
     window.submitEphemeralSecret = async function() {
         const content = document.getElementById('secretInputText').value.trim();
         const title = document.getElementById('secretTitle').value.trim();
         const ttl = document.getElementById('secretTtl').value;
         const burnOnRead = document.getElementById('secretBurnOnRead').checked;
+        const submitBtn = document.querySelector('#secretModal .btn-primary');
 
         if (!content) return;
+
+        // Disparar ignición de mecha en el botón del modal
+        if (submitBtn) {
+            triggerSecretExplosion(submitBtn, null, true);
+        }
 
         try {
             const res = await fetch('/api/secrets/create/', {
@@ -557,9 +680,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const data = await res.json();
             if (res.ok) {
-                closeSecretModal();
-                hideDlpAlert();
-                document.getElementById('secretInputText').value = '';
+                setTimeout(() => {
+                    closeSecretModal();
+                    hideDlpAlert();
+                    document.getElementById('secretInputText').value = '';
+                    document.getElementById('secretTitle').value = '';
+                }, 280);
             } else {
                 alert(data.error || 'Error al crear secreto');
             }
