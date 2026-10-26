@@ -60,11 +60,22 @@ document.addEventListener('DOMContentLoaded', () => {
             if (data.type === 'new_message') {
                 appendChatMessage(data);
                 hideDlpAlert();
+                if ((data.sender || data.author) !== currentUser) {
+                    showIncomingMessageNotification(data);
+                }
             }
 
             // 3. Notificación de nuevo secreto efímero
             if (data.type === 'new_secret') {
                 appendSecretCard(data);
+                if (data.author !== currentUser) {
+                    showIncomingMessageNotification({
+                        author: data.author,
+                        sender: data.author,
+                        display_name: data.author,
+                        content: `🔒 Secreto efímero: ${data.title}`
+                    });
+                }
                 return;
             }
 
@@ -413,6 +424,217 @@ document.addEventListener('DOMContentLoaded', () => {
             renderLottieItem(pendingLottieId, pendingLottieData, pendingLottieUrl);
         }
     }
+
+    // ===================================================
+    // SISTEMA DE NOTIFICACIONES (Escritorio OS y Toasts sobre el reloj)
+    // ===================================================
+
+    // Sintetizador Web Audio para sonido sutil de llegada de mensaje
+    function playNotificationSound() {
+        try {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtx) return;
+            const ctx = new AudioCtx();
+            const now = ctx.currentTime;
+
+            // Tono 1: 587.33 Hz (D5)
+            const osc1 = ctx.createOscillator();
+            const gain1 = ctx.createGain();
+            osc1.type = 'sine';
+            osc1.frequency.setValueAtTime(587.33, now);
+            gain1.gain.setValueAtTime(0.07, now);
+            gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+            osc1.connect(gain1);
+            gain1.connect(ctx.destination);
+            osc1.start(now);
+            osc1.stop(now + 0.16);
+
+            // Tono 2: 880 Hz (A5)
+            const osc2 = ctx.createOscillator();
+            const gain2 = ctx.createGain();
+            osc2.type = 'sine';
+            osc2.frequency.setValueAtTime(880, now + 0.08);
+            gain2.gain.setValueAtTime(0.10, now + 0.08);
+            gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
+            osc2.connect(gain2);
+            gain2.connect(ctx.destination);
+            osc2.start(now + 0.08);
+            osc2.stop(now + 0.32);
+        } catch (e) {
+            // Audio no permitido o silenciado
+        }
+    }
+
+    // Solicitar permiso de notificaciones nativas del Sistema Operativo
+    window.requestDesktopNotificationPermission = async function() {
+        if (!("Notification" in window)) {
+            showToastNotification({
+                sender: 'Sistema',
+                display_name: 'Telegraph',
+                content: 'Tu navegador no soporta la API de notificaciones nativas.'
+            });
+            return;
+        }
+
+        try {
+            const permission = await Notification.requestPermission();
+            updateNotificationBtnState();
+            if (permission === 'granted') {
+                showToastNotification({
+                    sender: 'Telegraph',
+                    display_name: 'Notificaciones Activas',
+                    content: '✅ Las notificaciones de escritorio están activadas. Se mostrarán sobre tus aplicaciones.'
+                });
+                try {
+                    new Notification('Telegraph', {
+                        body: '¡Notificaciones de escritorio en pantalla configuradas correctamente!',
+                        icon: '/static/icons/icon-192x192.png'
+                    });
+                } catch (e) {}
+            } else if (permission === 'denied') {
+                showToastNotification({
+                    sender: 'Telegraph',
+                    display_name: 'Permiso Denegado',
+                    content: '⚠️ Has bloqueado las notificaciones en tu navegador. Puedes activarlas desde el candado de la barra de direcciones.'
+                });
+            }
+        } catch (err) {
+            console.error('Error al solicitar permiso de notificaciones:', err);
+        }
+    };
+
+    function updateNotificationBtnState() {
+        const btn = document.getElementById('btnToggleDesktopNotifs');
+        if (!btn || !("Notification" in window)) return;
+        if (Notification.permission === 'granted') {
+            btn.style.color = '#3ba55d';
+            btn.title = 'Notificaciones de escritorio en pantalla activadas';
+        } else if (Notification.permission === 'denied') {
+            btn.style.color = '#ed4245';
+            btn.title = 'Notificaciones bloqueadas por el navegador';
+        } else {
+            btn.style.color = '';
+            btn.title = 'Activar notificaciones de escritorio en pantalla';
+        }
+    }
+
+    // Despachador de notificación
+    function showIncomingMessageNotification(msg) {
+        const author = msg.sender || msg.author || 'Usuario';
+        if (author === currentUser) return;
+
+        // Sonido de notificación
+        playNotificationSound();
+
+        // 1. Notificación Nativa del Sistema Operativo (Superpuesta a todas las pantallas, sobre el reloj)
+        if ("Notification" in window && Notification.permission === "granted") {
+            try {
+                const displayName = msg.display_name ? `${msg.display_name} (@${author})` : `@${author}`;
+                let snippet = msg.content || '';
+                if (msg.is_code) snippet = '💻 [Fragmento de código]';
+                else if (msg.is_sticker) snippet = '🎨 [Sticker]';
+                else if (msg.attachment_url && !msg.content) snippet = '📎 [Archivo adjunto]';
+
+                const nativeNotif = new Notification(displayName, {
+                    body: snippet.length > 90 ? snippet.substring(0, 90) + '...' : snippet,
+                    icon: msg.avatar_url || undefined,
+                    tag: 'tg-msg-' + (msg.id || Date.now()),
+                    silent: true
+                });
+
+                nativeNotif.onclick = function() {
+                    window.focus();
+                    this.close();
+                };
+
+                // Desaparecer automáticamente en el tiempo (5 segundos)
+                setTimeout(() => {
+                    try { nativeNotif.close(); } catch (e) {}
+                }, 5000);
+            } catch (err) {
+                console.warn('Error en notificación nativa:', err);
+            }
+        }
+
+        // 2. Notificación Toast Flotante In-App (Abajo a la derecha, sobre el reloj)
+        showToastNotification(msg);
+    }
+    window.showIncomingMessageNotification = showIncomingMessageNotification;
+
+    function showToastNotification(msg) {
+        let container = document.getElementById('tgNotificationContainer');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'tgNotificationContainer';
+            container.className = 'tg-notification-container';
+            document.body.appendChild(container);
+        }
+
+        const author = msg.sender || msg.author || 'Telegraph';
+        const displayName = msg.display_name || author;
+        let snippet = msg.content || '';
+        if (msg.is_code) snippet = '💻 Fragmento de código compartido';
+        else if (msg.is_sticker) snippet = '🎨 Sticker enviado';
+        else if (msg.attachment_url && !msg.content) snippet = '📎 Archivo adjunto compartido';
+
+        const toast = document.createElement('div');
+        toast.className = 'tg-toast-notif';
+
+        const avatarInner = msg.avatar_url 
+            ? `<img src="${msg.avatar_url}" alt="Avatar">`
+            : escapeHtml(author.charAt(0).toUpperCase());
+
+        toast.innerHTML = `
+            <div class="tg-toast-header">
+                <div class="tg-toast-author-info">
+                    <div class="tg-toast-avatar">${avatarInner}</div>
+                    <span class="tg-toast-author-name">${escapeHtml(displayName)}</span>
+                </div>
+                <div class="tg-toast-meta">
+                    <span class="tg-toast-time">ahora</span>
+                    <button class="tg-toast-close" title="Cerrar">✕</button>
+                </div>
+            </div>
+            <div class="tg-toast-body">${escapeHtml(snippet)}</div>
+            <div class="tg-toast-progress-bar"></div>
+        `;
+
+        function closeThisToast(e) {
+            if (e) e.stopPropagation();
+            toast.classList.add('closing');
+            setTimeout(() => {
+                if (toast.parentNode) toast.parentNode.removeChild(toast);
+            }, 350);
+        }
+
+        const closeBtn = toast.querySelector('.tg-toast-close');
+        if (closeBtn) closeBtn.addEventListener('click', closeThisToast);
+
+        toast.addEventListener('click', () => {
+            window.focus();
+            if (messagesContainer) {
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+            closeThisToast();
+        });
+
+        container.appendChild(toast);
+
+        // Limitar a máximo 3 toasts simultáneos
+        const allToasts = container.querySelectorAll('.tg-toast-notif:not(.closing)');
+        if (allToasts.length > 3) {
+            allToasts[0].classList.add('closing');
+            setTimeout(() => {
+                if (allToasts[0] && allToasts[0].parentNode) allToasts[0].parentNode.removeChild(allToasts[0]);
+            }, 350);
+        }
+
+        // Desvanecer automáticamente tras 5 segundos
+        setTimeout(() => {
+            closeThisToast();
+        }, 5000);
+    }
+    window.showToastNotification = showToastNotification;
 
     // Motor de Efecto de Explosión de Partículas, Humo y Onda Expansiva (Bomba de Tiempo)
     function triggerSecretExplosion(targetEl, onComplete, isMini = false) {
@@ -1818,6 +2040,18 @@ document.addEventListener('DOMContentLoaded', () => {
             alert('Error de conexión.');
         }
     };
+
+    // Inicializar notificaciones de escritorio en pantalla
+    if ("Notification" in window) {
+        updateNotificationBtnState();
+        if (Notification.permission === 'default') {
+            const onFirstInteraction = () => {
+                document.removeEventListener('click', onFirstInteraction);
+                Notification.requestPermission().then(updateNotificationBtnState);
+            };
+            document.addEventListener('click', onFirstInteraction, { once: true });
+        }
+    }
 });
 
 

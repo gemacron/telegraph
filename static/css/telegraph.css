@@ -3238,6 +3238,174 @@ html, body {
     color: #949ba4;
 }
 
+/* ===================================================
+   SISTEMA DE NOTIFICACIONES TOAST (Abajo a la derecha, sobre el reloj)
+   =================================================== */
+.tg-notification-container {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 999999;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 12px;
+    max-width: 380px;
+    width: calc(100vw - 48px);
+    pointer-events: none;
+}
+
+.tg-toast-notif {
+    pointer-events: auto;
+    background: rgba(26, 27, 31, 0.96);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(88, 101, 242, 0.45);
+    border-radius: 12px;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.7), 0 0 18px rgba(88, 101, 242, 0.25);
+    padding: 12px 16px 12px 14px;
+    color: #ffffff;
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+    transform-origin: bottom right;
+    animation: tgToastSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.35s ease;
+}
+
+.tg-toast-notif:hover {
+    transform: translateY(-2px);
+    border-color: rgba(88, 101, 242, 0.75);
+    box-shadow: 0 16px 42px rgba(0, 0, 0, 0.8), 0 0 24px rgba(88, 101, 242, 0.4);
+}
+
+.tg-toast-notif.closing {
+    animation: tgToastSlideOut 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes tgToastSlideIn {
+    from {
+        transform: translateX(115%) scale(0.92);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0) scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes tgToastSlideOut {
+    from {
+        transform: translateX(0) scale(1);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(115%) scale(0.92);
+        opacity: 0;
+    }
+}
+
+.tg-toast-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.tg-toast-author-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    overflow: hidden;
+}
+
+.tg-toast-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #5865f2 0%, #0088cc 100%);
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.tg-toast-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.tg-toast-author-name {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: #f2f3f5;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+}
+
+.tg-toast-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.tg-toast-time {
+    font-size: 11px;
+    color: #949ba4;
+}
+
+.tg-toast-close {
+    background: none;
+    border: none;
+    color: #949ba4;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 2px 4px;
+    border-radius: 4px;
+    transition: color 0.15s, background 0.15s;
+    line-height: 1;
+}
+
+.tg-toast-close:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.tg-toast-body {
+    font-size: 12.5px;
+    color: #dbdee1;
+    line-height: 1.4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-left: 36px;
+    margin-bottom: 6px;
+}
+
+.tg-toast-progress-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #5865f2, #0088cc, #23a55a);
+    width: 100%;
+    animation: tgToastProgress 5s linear forwards;
+}
+
+@keyframes tgToastProgress {
+    from { width: 100%; }
+    to { width: 0%; }
+}
+
+
 
 
 

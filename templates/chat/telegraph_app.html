@@ -218,6 +218,7 @@
                 {% endif %}
                 <button type="button" class="btn-icon-header" title="Iniciar o unirse a llamada de voz en este canal" onclick="startCall('audio')">📞</button>
                 <button type="button" class="btn-icon-header" title="Iniciar o unirse a videollamada en este canal" onclick="startCall('video')">📹</button>
+                <button type="button" class="btn-icon-header" id="btnToggleDesktopNotifs" title="Activar notificaciones de escritorio en pantalla" onclick="requestDesktopNotificationPermission()">🔔</button>
                 <button type="button" class="btn-icon-header" title="Mensajes fijados" onclick="alert('No hay mensajes fijados en esta conversación.')">📌</button>
                 <button type="button" class="btn-icon-header active" id="btnToggleProfileDrawer" title="Mostrar/Ocultar Perfil de Usuario" onclick="toggleProfileDrawer()">👤</button>
 
@@ -1300,6 +1301,10 @@
         setTimeout(() => { btn.disabled = false; }, 2500);
     }
 </script>
+
+<!-- Contenedor Flotante de Notificaciones Toast (Abajo a la derecha sobre el reloj) -->
+<div id="tgNotificationContainer" class="tg-notification-container"></div>
+
 <script src="{% static 'vendor/lottie/lottie.min.js' %}"></script>
 <script src="{% static 'js/telegraph.js' %}"></script>
 <script src="{% static 'js/telegraph_webrtc.js' %}"></script>
