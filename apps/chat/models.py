@@ -322,6 +322,13 @@ class EphemeralSecret(models.Model):
     def is_expired(self):
         return timezone.now() >= self.expires_at
 
+    @property
+    def ttl_seconds(self):
+        if self.expires_at and self.created_at:
+            delta = (self.expires_at - self.created_at).total_seconds()
+            return max(int(delta), 1)
+        return 30
+
     @transaction.atomic
     def access_and_burn(self):
         """

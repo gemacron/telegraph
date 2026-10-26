@@ -483,7 +483,9 @@ def create_ephemeral_secret_api(request):
 
     secret_content = data.get('secret_content', '').strip()
     title = data.get('title', 'Credencial / Secreto de Desarrollo').strip()
-    ttl_minutes = int(data.get('ttl_minutes', 60))
+    ttl_seconds = int(data.get('ttl_seconds') or data.get('ttl_minutes', 30))
+    if ttl_seconds <= 0:
+        ttl_seconds = 30
     burn_on_read = bool(data.get('burn_on_read', True))
     room_id = data.get('room_id')
 
@@ -495,7 +497,7 @@ def create_ephemeral_secret_api(request):
     encrypted_bytes = cipher.encrypt(secret_content.encode('utf-8'))
     encrypted_payload = encrypted_bytes.decode('utf-8')
 
-    expires_at = timezone.now() + timedelta(minutes=ttl_minutes)
+    expires_at = timezone.now() + timedelta(seconds=ttl_seconds)
 
     channel = Channel.objects.filter(id=room_id).first()
     direct_conv = None if channel else DirectConversation.objects.filter(id=room_id).first()
@@ -520,7 +522,7 @@ def create_ephemeral_secret_api(request):
             'secret_id': str(secret.id),
             'title': secret.title,
             'burn_on_read': secret.burn_on_read,
-            'ttl_minutes': ttl_minutes,
+            'ttl_seconds': ttl_seconds,
             'expires_at': secret.expires_at.strftime("%Y-%m-%d %H:%M:%S UTC"),
             'room_id': str(room_id)
         }
@@ -538,6 +540,7 @@ def create_ephemeral_secret_api(request):
                     'title': secret.title,
                     'author': request.user.username,
                     'burn_on_read': secret.burn_on_read,
+                    'ttl_seconds': ttl_seconds,
                     'expires_at': secret.expires_at.strftime("%H:%M:%S UTC"),
                     'created_at': secret.created_at.strftime("%H:%M")
                 }
@@ -585,6 +588,7 @@ def reveal_ephemeral_secret_api(request, secret_id):
 
     author_username = secret.author.username
     secret_title = secret.title
+    secret_ttl_seconds = secret.ttl_seconds
     room_id = secret.channel_id or (secret.direct_conversation_id if secret.direct_conversation else None)
 
     # Acceso atómico y purga
@@ -594,7 +598,7 @@ def reveal_ephemeral_secret_api(request, secret_id):
             'error': 'El secreto ya no está disponible.'
         }, status=410)
 
-    # Si fue purgado por Burn-On-Read, notificar por WebSocket para detonar la tarjeta en todos los clientes
+    # Si fue purgado por Burn-On-Read, notificar por WebSocket para detonar la tarjeta en los demás clientes (el creador)
     if destroyed and room_id:
         channel_layer = get_channel_layer()
         if channel_layer:
@@ -634,6 +638,7 @@ def reveal_ephemeral_secret_api(request, secret_id):
         'status': 'success',
         'content': decrypted_content,
         'was_destroyed': destroyed,
+        'ttl_seconds': secret_ttl_seconds,
         'message': 'Secreto revelado. El registro ha sido purgado de PostgreSQL.' if destroyed else 'Secreto revelado.'
     })
 

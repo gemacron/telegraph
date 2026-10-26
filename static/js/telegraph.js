@@ -528,7 +528,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <div class="secret-desc">
                         Este mensaje contiene datos sensibles cifrados en el servidor.
-                        ${secret.burn_on_read ? '⚠️ <strong>Se destruirá de forma irreversible</strong> tras el primer acceso.' : '⏱️ Expirará automáticamente a las ' + secret.expires_at}
+                        ${secret.burn_on_read ? `⚠️ <strong>Se autodestruirá con explosión</strong> tras ser revelado (cuenta regresiva de ${secret.ttl_seconds || 30} segundos).` : `⏱️ Expirará automáticamente en ${secret.ttl_seconds || 30} segundos.`}
                     </div>
                     ${actionButtonHtml}
                 </div>
@@ -560,10 +560,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const data = await res.json();
             if (res.ok) {
-                // Si fue purgado de la base de datos por política Burn-On-Read, disparar explosión
-                if (data.was_destroyed) {
-                    triggerSecretExplosion(box);
-                }
+                // Iniciar la cuenta regresiva en segundos (NO detonar de inmediato, detonar cuando la cuenta llegue a cero)
+                const countdownSeconds = data.ttl_seconds || 30;
 
                 box.innerHTML = `
                     <div class="secret-header" style="color: #a6e3a1;">
@@ -574,11 +572,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         ${escapeHtml(data.content)}
                     </div>
                     <div class="secret-timer-alert">
-                        ⏳ Este contenido se autodestruirá permanentemente en <span id="timer_${secretId}" style="color: #ff3b30; font-size: 15px; font-weight: 800; margin: 0 4px;">30</span>s.
+                        ⏳ Este contenido se autodestruirá con explosión en <span id="timer_${secretId}" style="color: #ff3b30; font-size: 16px; font-weight: 800; margin: 0 4px;">${countdownSeconds}</span> segundos.
                     </div>
                 `;
 
-                let remaining = 30;
+                let remaining = countdownSeconds;
                 const timerEl = document.getElementById(`timer_${secretId}`);
                 const interval = setInterval(() => {
                     remaining--;
@@ -591,7 +589,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     if (remaining <= 0) {
                         clearInterval(interval);
-                        // ¡GRAN DETONACIÓN FINAL AL EXPIRAR!
+                        // ¡GRAN DETONACIÓN FINAL AL CUMPLIRSE LA CUENTA REGRESIVA!
                         triggerSecretExplosion(box, () => {
                             box.classList.add('secret-burned-card');
                             box.innerHTML = `
@@ -599,7 +597,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     <span>💥 ¡BOOM! SECRETO PURGADO</span>
                                 </div>
                                 <div class="secret-desc" style="color: #949ba4; margin-bottom: 0;">
-                                    💨 El contenido ha sido destruido irreversiblemente y eliminado de la memoria y de PostgreSQL.
+                                    💨 La cuenta regresiva finalizó. El contenido ha sido destruido irreversiblemente y eliminado de la memoria y de PostgreSQL.
                                 </div>
                             `;
                         });
@@ -615,6 +613,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Manejo de la autodestrucción remota sincronizada (cuando el receptor abre el secreto)
     function handleSecretBurned(secretId, burnerUsername) {
+        // Si el usuario actual es quien lo abrió, NO sobreescribir su vista local (su cuenta regresiva está activa en pantalla)
+        if (burnerUsername === currentUser) {
+            return;
+        }
+
         const box = document.getElementById(`secretBox_${secretId}`);
         if (!box) return;
         if (box.classList.contains('secret-burned-card')) return;
@@ -706,7 +709,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     room_id: roomId,
                     title: title || 'Dato Sensible Confidencial',
                     secret_content: content,
-                    ttl_minutes: parseInt(ttl),
+                    ttl_seconds: parseInt(ttl) || 30,
                     burn_on_read: burnOnRead
                 })
             });
