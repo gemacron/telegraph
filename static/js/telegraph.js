@@ -1,4 +1,15 @@
 // Telegraph - Cliente WebSocket y Control de Seguridad DLP
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+window.escapeHtml = escapeHtml;
+
 document.addEventListener('DOMContentLoaded', () => {
     const roomId = window.TELEGRAPH_ROOM_ID || window.DEV_ROOM_ID;
     const currentUser = window.TELEGRAPH_CURRENT_USER || window.DEV_CURRENT_USER;
@@ -898,16 +909,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 const packHeader = document.createElement('div');
                 packHeader.className = 'tg-stickers-pack-header';
                 packHeader.id = `tgPack_${packName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
-                packHeader.innerHTML = `
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <span>${escapeHtml(packName)}</span>
-                        <span style="font-size: 11px; color: #949ba4; font-weight: 500;">(${validStickers.length})</span>
-                    </div>
-                    <button type="button" class="tg-pack-view-btn" onclick="openStickerPackModal('${escapeHtml(packName)}')">
-                        <span>Ver Pack</span>
-                        <span>↗</span>
-                    </button>
-                `;
+                
+                const headerInfo = document.createElement('div');
+                headerInfo.style.display = 'flex';
+                headerInfo.style.alignItems = 'center';
+                headerInfo.style.gap = '8px';
+                headerInfo.innerHTML = `<span>${escapeHtml(packName)}</span><span style="font-size: 11px; color: #949ba4; font-weight: 500;">(${validStickers.length})</span>`;
+                packHeader.appendChild(headerInfo);
+
+                const viewBtn = document.createElement('button');
+                viewBtn.type = 'button';
+                viewBtn.className = 'tg-pack-view-btn';
+                viewBtn.innerHTML = '<span>Ver Pack</span><span>↗</span>';
+                viewBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    openStickerPackModal(packName);
+                };
+                packHeader.appendChild(viewBtn);
+
                 container.appendChild(packHeader);
 
                 const grid = document.createElement('div');
@@ -944,9 +963,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!modal || !gridEl) return;
 
-        const packStickers = (window.telegraphPacksCache && window.telegraphPacksCache[packName]) 
+        let packStickers = (window.telegraphPacksCache && window.telegraphPacksCache[packName]) 
             ? window.telegraphPacksCache[packName].filter(s => !s.url.endsWith('.tgs') && !s.url.endsWith('.json'))
             : [];
+
+        if (packStickers.length === 0 && window.telegraphStickersCache && window.telegraphStickersCache.length > 0) {
+            packStickers = window.telegraphStickersCache.filter(s => s.category === packName && !s.url.endsWith('.tgs') && !s.url.endsWith('.json'));
+        }
 
         if (titleEl) titleEl.textContent = packName;
         if (subtitleEl) subtitleEl.textContent = `${packStickers.length} stickers • Oficial Telegram`;
@@ -971,6 +994,9 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
             gridEl.appendChild(item);
         });
+
+        // Cerrar el popover pequeño para enfocar el modal
+        closeTelegramPicker();
 
         modal.style.display = 'flex';
     };
