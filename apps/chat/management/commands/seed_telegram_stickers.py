@@ -1,6 +1,5 @@
 import os
 import json
-import gzip
 import urllib.request
 import urllib.parse
 from django.core.management.base import BaseCommand
@@ -8,60 +7,24 @@ from django.core.files.base import ContentFile
 from apps.chat.models import Sticker
 
 class Command(BaseCommand):
-    help = 'Puebla la base de datos con los paquetes de stickers oficiales y animados de Telegram'
+    help = 'Puebla la base de datos con los paquetes de stickers oficiales y animados de Telegram (WebP HD)'
 
     def handle(self, *args, **options):
-        self.stdout.write(self.style.NOTICE("Iniciando descarga y configuración de stickers oficiales de Telegram..."))
+        self.stdout.write(self.style.NOTICE("Iniciando purga de stickers no compatibles (.tgs/.json) y configuración de stickers WebP..."))
 
-        # Limpiar stickers viejos de prueba con nombres genéricos
-        Sticker.objects.filter(name__in=[
-            'lgtm', 'works_on_my_machine', 'deploy_friday', 'python_power', 
-            'bug_hunter', 'coffee_code', 'docker_ship', 'dlp_safe'
-        ]).delete()
+        # Purgar cualquier sticker con formato binario o JSON que no puede ser renderizado nativamente por etiquetas <img>
+        deleted_count, _ = Sticker.objects.filter(
+            category__in=['Telegram Animado', 'Telegram Animados Oficial', 'Aprobación', 'Humor Dev', 'Tecnología', 'Desarrollo', 'Trabajo', 'DevOps', 'Seguridad']
+        ).delete()
+        self.stdout.write(self.style.WARNING(f"Purgados {deleted_count} stickers obsoletos o no compatibles."))
+        
+        # Eliminar también cualquier sticker con animation_type tgs o lottie
+        Sticker.objects.filter(animation_type__in=['lottie', 'tgs']).delete()
 
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
 
-        # 1. Pack: Telegram Animados Oficial (.TGS Lottie de DrKLO / Telegram Official)
-        tgs_stickers = [
-            ("a_sticker1.tgs", "Telegram Party Star", "Telegram Animados Oficial"),
-            ("a_sticker2.tgs", "Telegram Heart Love", "Telegram Animados Oficial"),
-            ("a_sticker3.tgs", "Telegram High Five", "Telegram Animados Oficial"),
-            ("a_sticker4.tgs", "Telegram Cool Shades", "Telegram Animados Oficial"),
-            ("a_sticker5.tgs", "Telegram Wow Shock", "Telegram Animados Oficial"),
-            ("a_sticker6.tgs", "Telegram Wink Smile", "Telegram Animados Oficial"),
-            ("a_sticker7.tgs", "Telegram Thumbs Up", "Telegram Animados Oficial"),
-            ("a_sticker8.tgs", "Telegram Fire Energy", "Telegram Animados Oficial"),
-            ("a_sticker9.tgs", "Telegram Laughing", "Telegram Animados Oficial"),
-        ]
-
+        # 1. Pack: Telegram Clásicos Oficiales (.WEBP de Telegram Oficial)
         tgs_base_url = "https://raw.githubusercontent.com/DrKLO/TelegramStickersImport/master/app/src/main/res/raw/"
-
-        for filename, sticker_name, category in tgs_stickers:
-            try:
-                url = tgs_base_url + filename
-                req = urllib.request.Request(url, headers=headers)
-                with urllib.request.urlopen(req, timeout=10) as response:
-                    raw_data = response.read()
-                    try:
-                        decompressed = gzip.decompress(raw_data).decode('utf-8')
-                    except Exception:
-                        decompressed = ""
-
-                    sticker, created = Sticker.objects.update_or_create(
-                        name=sticker_name,
-                        category=category,
-                        defaults={
-                            'is_animated': True,
-                            'animation_type': 'tgs',
-                            'lottie_json': decompressed
-                        }
-                    )
-                    sticker.image.save(filename, ContentFile(raw_data), save=True)
-                    self.stdout.write(self.style.SUCCESS(f" [OK] {category} -> {sticker_name}"))
-            except Exception as e:
-                self.stdout.write(self.style.WARNING(f" [ERR] {sticker_name}: {e}"))
-
-        # 2. Pack: Telegram Clásicos Oficiales (.WEBP de Telegram)
         webp_stickers = [
             ("sticker1.webp", "Telegram Star", "Telegram Clásicos"),
             ("sticker2.webp", "Telegram Big Heart", "Telegram Clásicos"),
@@ -93,7 +56,7 @@ class Command(BaseCommand):
             except Exception as e:
                 self.stdout.write(self.style.WARNING(f" [ERR] {sticker_name}: {e}"))
 
-        # 3. Pack: Telegram Animated Emojis (HD WebP Animados Oficiales)
+        # 2. Pack: Telegram Animated Emojis (HD WebP Animados Oficiales)
         animated_emojis = [
             ("Smileys", "Partying Face.webp", "Fiesta"),
             ("Smileys", "Face With Tears Of Joy.webp", "Risa Llanto"),
@@ -119,7 +82,7 @@ class Command(BaseCommand):
             ("People", "Thumbs Down.webp", "Pulgar Abajo"),
             ("People", "Clapping Hands.webp", "Aplausos Grandes"),
             ("People", "Victory Hand.webp", "Victoria y Paz"),
-            ("People", "Ok Hand.webp", "Manos Ok Perfecto"),
+            ("People", "Ok Hand.webp", "Manos Ok"),
             ("People", "Heart Hands.webp", "Manos de Amor"),
             ("People", "Waving Hand.webp", "Saludo Hola"),
         ]
@@ -147,4 +110,41 @@ class Command(BaseCommand):
             except Exception as e:
                 self.stdout.write(self.style.WARNING(f" [ERR] {display_name}: {e}"))
 
-        self.stdout.write(self.style.SUCCESS("✓ Todos los packs oficiales de stickers de Telegram han sido poblados con éxito."))
+        # 3. Pack: Telegram Mascotas y Animales (WebP Animados Oficiales)
+        animals_emojis = [
+            ("Dog Face.webp", "Perrito Feliz"),
+            ("Dog.webp", "Perro Telegram"),
+            ("Cat Face.webp", "Gatito Tierno"),
+            ("Cat.webp", "Gato Telegram"),
+            ("Bear.webp", "Oso Fuerte"),
+            ("Panda.webp", "Panda"),
+            ("Monkey Face.webp", "Monito"),
+            ("Lion.webp", "León"),
+            ("Fox.webp", "Zorro Astuto"),
+            ("Unicorn.webp", "Unicornio"),
+            ("Baby Chick.webp", "Pollito"),
+            ("Penguin.webp", "Pingüino"),
+        ]
+
+        for raw_filename, display_name in animals_emojis:
+            try:
+                encoded_path = f"{urllib.parse.quote('Animals and Nature')}/{urllib.parse.quote(raw_filename)}"
+                url = anim_base + encoded_path
+                req = urllib.request.Request(url, headers=headers)
+                with urllib.request.urlopen(req, timeout=10) as response:
+                    raw_data = response.read()
+                    clean_local_name = f"tg_anim_{raw_filename.lower().replace(' ', '_')}"
+                    sticker, created = Sticker.objects.update_or_create(
+                        name=display_name,
+                        category="Telegram Mascotas y Animales",
+                        defaults={
+                            'is_animated': True,
+                            'animation_type': 'webp'
+                        }
+                    )
+                    sticker.image.save(clean_local_name, ContentFile(raw_data), save=True)
+                    self.stdout.write(self.style.SUCCESS(f" [OK] Telegram Mascotas -> {display_name}"))
+            except Exception as e:
+                self.stdout.write(self.style.WARNING(f" [ERR] Mascotas {display_name}: {e}"))
+
+        self.stdout.write(self.style.SUCCESS("✓ Todos los stickers han sido actualizados con imágenes 100% compatibles WebP."))

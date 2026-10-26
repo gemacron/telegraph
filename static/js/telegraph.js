@@ -844,24 +844,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 Object.keys(packs).forEach(packName => {
+                    const validStickers = packs[packName].filter(s => !s.url.endsWith('.tgs') && !s.url.endsWith('.json'));
+                    if (validStickers.length === 0) return;
+
                     const packHeader = document.createElement('div');
                     packHeader.className = 'tg-stickers-pack-header';
                     packHeader.id = `tgPack_${packName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
-                    packHeader.innerHTML = `<span>${escapeHtml(packName)}</span><span style="font-size: 11px; color: #949ba4;">${packs[packName].length} stickers</span>`;
+                    packHeader.innerHTML = `<span>${escapeHtml(packName)}</span><span style="font-size: 11px; color: #949ba4;">${validStickers.length} stickers</span>`;
                     container.appendChild(packHeader);
 
                     const grid = document.createElement('div');
                     grid.className = 'tg-stickers-grid';
 
-                    packs[packName].forEach(s => {
+                    validStickers.forEach(s => {
                         const item = document.createElement('div');
                         item.className = 'tg-sticker-item';
                         item.title = `${s.name} (Clic para enviar)`;
-                        item.onclick = () => sendSticker(s.url, s.name, s.is_animated, s.animation_type);
+                        item.onclick = () => sendSticker(s.url, s.name, s.is_animated, s.animation_type || 'webp');
 
                         const badge = s.is_animated ? '<span class="tg-sticker-badge">✨</span>' : '';
                         item.innerHTML = `
-                            <img src="${s.url}" alt="${s.name}" class="tg-sticker-thumb">
+                            <img src="${s.url}" alt="${escapeHtml(s.name)}" class="tg-sticker-thumb" loading="lazy" onerror="this.closest('.tg-sticker-item')?.remove()">
                             ${badge}
                         `;
                         grid.appendChild(item);
