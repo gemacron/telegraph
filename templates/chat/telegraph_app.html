@@ -419,7 +419,7 @@
                         </div>
 
                         {% if msg.is_sticker and msg.sticker_image_url %}
-                            <div class="msg-sticker-wrapper">
+                            <div class="msg-sticker-wrapper" onclick="openStickerPackModalByUrl('{{ msg.sticker_image_url }}')" title="Clic para ver el pack completo de stickers" style="cursor: pointer;">
                                 <img src="{{ msg.sticker_image_url }}" class="msg-sticker-img" alt="{{ msg.content }}" title="{{ msg.content }}">
                             </div>
                         {% elif msg.is_sticker %}
@@ -520,6 +520,8 @@
 
                     <!-- Pestaña Stickers -->
                     <div class="tg-pane" id="tgPaneStickers" style="display: none;">
+                        <!-- Barra de Packs de Stickers con Iconos Reales estilo Telegram -->
+                        <div class="tg-packs-nav" id="tgPacksNav"></div>
                         <div class="tg-stickers-container" id="tgStickersContainer">
                             <!-- Se renderizan los packs de stickers agrupados con encabezados -->
                         </div>
@@ -1188,6 +1190,29 @@
         <button type="button" class="btn-toast-circle btn-toast-green" onclick="acceptIncomingCall('audio')" title="Aceptar llamada de voz">📞</button>
         <button type="button" class="btn-toast-circle btn-toast-blurple" onclick="acceptIncomingCall('video')" title="Aceptar videollamada">📹</button>
         <button type="button" class="btn-toast-circle btn-toast-red" onclick="rejectIncomingCall()" title="Rechazar">✕</button>
+    </div>
+<!-- Modal Estilo Telegram: Ver Pack Completo de Stickers -->
+<div class="tg-pack-modal-overlay" id="tgPackModalOverlay" style="display: none;" onclick="closeStickerPackModal(event)">
+    <div class="tg-pack-modal-dialog" onclick="event.stopPropagation()">
+        <div class="tg-pack-modal-header">
+            <div class="tg-pack-modal-info">
+                <img id="tgPackModalAvatar" src="" alt="Pack" class="tg-pack-modal-avatar">
+                <div>
+                    <h3 class="tg-pack-modal-title" id="tgPackModalTitle">Nombre del Pack</h3>
+                    <div class="tg-pack-modal-subtitle" id="tgPackModalSubtitle">0 stickers • Oficial Telegram</div>
+                </div>
+            </div>
+            <button type="button" class="tg-pack-modal-close" onclick="closeStickerPackModal()" title="Cerrar">✕</button>
+        </div>
+        <div class="tg-pack-modal-body">
+            <div class="tg-pack-modal-grid" id="tgPackModalGrid">
+                <!-- Se pueblan dinámicamente todos los stickers del pack -->
+            </div>
+        </div>
+        <div class="tg-pack-modal-footer">
+            <span class="tg-pack-modal-hint">💡 Haz clic en cualquier sticker para enviarlo al chat</span>
+            <button type="button" class="btn-primary" onclick="closeStickerPackModal()" style="font-size: 13px; padding: 6px 18px; border-radius: 8px;">Cerrar</button>
+        </div>
     </div>
 </div>
 {% endblock %}

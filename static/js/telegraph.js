@@ -330,11 +330,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (msg.is_sticker) {
             const stickerUrl = msg.sticker_image_url || '/media/stickers/lgtm.png';
             if (msg.is_animated_sticker && msg.sticker_animation_type === 'webm') {
-                innerContent = `<div class="msg-sticker-wrapper">
+                innerContent = `<div class="msg-sticker-wrapper" onclick="openStickerPackModalByUrl('${stickerUrl}')" title="Clic para ver el pack completo" style="cursor: pointer;">
                                     <video class="msg-sticker-animated msg-sticker-webm" autoplay loop muted playsinline src="${stickerUrl}" title="${escapeHtml(msg.content)}"></video>
                                 </div>`;
             } else {
-                innerContent = `<div class="msg-sticker-wrapper">
+                innerContent = `<div class="msg-sticker-wrapper" onclick="openStickerPackModalByUrl('${stickerUrl}')" title="Clic para ver el pack completo" style="cursor: pointer;">
                                     <img src="${stickerUrl}" class="msg-sticker-img" alt="${escapeHtml(msg.content)}" title="${escapeHtml(msg.content)}">
                                 </div>`;
             }
@@ -819,64 +819,204 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Cargar y agrupar stickers de la base de datos
+    // Carga, almacenamiento en caché y gestión de Packs de Stickers estilo Telegram
+    window.telegraphStickersCache = [];
+    window.telegraphPacksCache = {};
+
     async function loadTelegramStickers() {
         const container = document.getElementById('tgStickersContainer');
+        const packsNav = document.getElementById('tgPacksNav');
         if (!container) return;
+
         try {
             const res = await fetch('/api/stickers/');
-            if (res.ok) {
-                const data = await res.json();
-                container.innerHTML = '';
-                const stickers = data.stickers || [];
+            if (!res.ok) return;
+            const data = await res.json();
+            const stickers = data.stickers || [];
+            window.telegraphStickersCache = stickers;
 
-                if (stickers.length === 0) {
-                    container.innerHTML = '<div style="color: #949ba4; padding: 24px; text-align: center;">No hay stickers disponibles.</div>';
-                    return;
-                }
+            container.innerHTML = '';
+            if (packsNav) packsNav.innerHTML = '';
 
-                // Agrupar por packs
-                const packs = {};
-                stickers.forEach(s => {
-                    const cat = s.category || 'Varios';
-                    if (!packs[cat]) packs[cat] = [];
-                    packs[cat].push(s);
-                });
+            if (stickers.length === 0) {
+                container.innerHTML = '<div style="color: #949ba4; padding: 24px; text-align: center;">No hay stickers disponibles.</div>';
+                return;
+            }
 
+            // Agrupar por packs
+            const packs = {};
+            stickers.forEach(s => {
+                const cat = s.category || 'Varios';
+                if (!packs[cat]) packs[cat] = [];
+                packs[cat].push(s);
+            });
+            window.telegraphPacksCache = packs;
+
+            // 1. Barra de Navegación de Packs estilo Telegram (tgPacksNav)
+            if (packsNav) {
+                // Botón "Todos los Packs"
+                const allBtn = document.createElement('button');
+                allBtn.type = 'button';
+                allBtn.className = 'tg-pack-nav-btn active';
+                allBtn.title = 'Todos los Packs';
+                allBtn.innerHTML = '⭐';
+                allBtn.onclick = () => {
+                    document.querySelectorAll('.tg-pack-nav-btn').forEach(b => b.classList.remove('active'));
+                    allBtn.classList.add('active');
+                    container.scrollTo({ top: 0, behavior: 'smooth' });
+                };
+                packsNav.appendChild(allBtn);
+
+                // Botón por cada Pack con su miniatura real representativa
                 Object.keys(packs).forEach(packName => {
                     const validStickers = packs[packName].filter(s => !s.url.endsWith('.tgs') && !s.url.endsWith('.json'));
                     if (validStickers.length === 0) return;
+                    const firstSticker = validStickers[0];
 
-                    const packHeader = document.createElement('div');
-                    packHeader.className = 'tg-stickers-pack-header';
-                    packHeader.id = `tgPack_${packName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
-                    packHeader.innerHTML = `<span>${escapeHtml(packName)}</span><span style="font-size: 11px; color: #949ba4;">${validStickers.length} stickers</span>`;
-                    container.appendChild(packHeader);
-
-                    const grid = document.createElement('div');
-                    grid.className = 'tg-stickers-grid';
-
-                    validStickers.forEach(s => {
-                        const item = document.createElement('div');
-                        item.className = 'tg-sticker-item';
-                        item.title = `${s.name} (Clic para enviar)`;
-                        item.onclick = () => sendSticker(s.url, s.name, s.is_animated, s.animation_type || 'webp');
-
-                        const badge = s.is_animated ? '<span class="tg-sticker-badge">✨</span>' : '';
-                        item.innerHTML = `
-                            <img src="${s.url}" alt="${escapeHtml(s.name)}" class="tg-sticker-thumb" loading="lazy" onerror="this.closest('.tg-sticker-item')?.remove()">
-                            ${badge}
-                        `;
-                        grid.appendChild(item);
-                    });
-
-                    container.appendChild(grid);
+                    const packBtn = document.createElement('button');
+                    packBtn.type = 'button';
+                    packBtn.className = 'tg-pack-nav-btn';
+                    packBtn.title = `Pack: ${packName} (${validStickers.length} stickers)`;
+                    packBtn.innerHTML = `<img src="${firstSticker.url}" alt="${escapeHtml(packName)}" class="tg-pack-nav-thumb">`;
+                    packBtn.onclick = () => {
+                        document.querySelectorAll('.tg-pack-nav-btn').forEach(b => b.classList.remove('active'));
+                        packBtn.classList.add('active');
+                        const targetHeader = document.getElementById(`tgPack_${packName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`);
+                        if (targetHeader) {
+                            targetHeader.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                    };
+                    packsNav.appendChild(packBtn);
                 });
             }
+
+            // 2. Renderizar cada Pack con su Encabezado y Botón "Ver Pack"
+            Object.keys(packs).forEach(packName => {
+                const validStickers = packs[packName].filter(s => !s.url.endsWith('.tgs') && !s.url.endsWith('.json'));
+                if (validStickers.length === 0) return;
+
+                const packHeader = document.createElement('div');
+                packHeader.className = 'tg-stickers-pack-header';
+                packHeader.id = `tgPack_${packName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+                packHeader.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span>${escapeHtml(packName)}</span>
+                        <span style="font-size: 11px; color: #949ba4; font-weight: 500;">(${validStickers.length})</span>
+                    </div>
+                    <button type="button" class="tg-pack-view-btn" onclick="openStickerPackModal('${escapeHtml(packName)}')">
+                        <span>Ver Pack</span>
+                        <span>↗</span>
+                    </button>
+                `;
+                container.appendChild(packHeader);
+
+                const grid = document.createElement('div');
+                grid.className = 'tg-stickers-grid';
+
+                validStickers.forEach(s => {
+                    const item = document.createElement('div');
+                    item.className = 'tg-sticker-item';
+                    item.title = `${s.name} (Clic para enviar)`;
+                    item.onclick = () => sendSticker(s.url, s.name, s.is_animated, s.animation_type || 'webp');
+
+                    const badge = s.is_animated ? '<span class="tg-sticker-badge">✨</span>' : '';
+                    item.innerHTML = `
+                        <img src="${s.url}" alt="${escapeHtml(s.name)}" class="tg-sticker-thumb" loading="lazy" onerror="this.closest('.tg-sticker-item')?.remove()">
+                        ${badge}
+                    `;
+                    grid.appendChild(item);
+                });
+
+                container.appendChild(grid);
+            });
         } catch (err) {
             console.error('Error cargando stickers:', err);
         }
     }
+
+    // Modal Estilo Telegram: Ver Pack de Stickers Completo
+    window.openStickerPackModal = function(packName) {
+        const modal = document.getElementById('tgPackModalOverlay');
+        const titleEl = document.getElementById('tgPackModalTitle');
+        const subtitleEl = document.getElementById('tgPackModalSubtitle');
+        const avatarEl = document.getElementById('tgPackModalAvatar');
+        const gridEl = document.getElementById('tgPackModalGrid');
+
+        if (!modal || !gridEl) return;
+
+        const packStickers = (window.telegraphPacksCache && window.telegraphPacksCache[packName]) 
+            ? window.telegraphPacksCache[packName].filter(s => !s.url.endsWith('.tgs') && !s.url.endsWith('.json'))
+            : [];
+
+        if (titleEl) titleEl.textContent = packName;
+        if (subtitleEl) subtitleEl.textContent = `${packStickers.length} stickers • Oficial Telegram`;
+
+        if (avatarEl && packStickers.length > 0) {
+            avatarEl.src = packStickers[0].url;
+            avatarEl.style.display = 'block';
+        }
+
+        gridEl.innerHTML = '';
+        packStickers.forEach(s => {
+            const item = document.createElement('div');
+            item.className = 'tg-pack-modal-item';
+            item.title = `${s.name} (Clic para enviar al chat)`;
+            item.onclick = () => {
+                sendSticker(s.url, s.name, s.is_animated, s.animation_type || 'webp');
+                closeStickerPackModal();
+            };
+            item.innerHTML = `
+                <img src="${s.url}" alt="${escapeHtml(s.name)}" class="tg-pack-modal-img" loading="lazy">
+                ${s.is_animated ? '<span class="tg-sticker-badge" style="top: 4px; right: 4px;">✨</span>' : ''}
+            `;
+            gridEl.appendChild(item);
+        });
+
+        modal.style.display = 'flex';
+    };
+
+    window.closeStickerPackModal = function(e) {
+        if (e && e.target && e.target.id !== 'tgPackModalOverlay' && !e.target.classList.contains('tg-pack-modal-close') && e.target.tagName !== 'BUTTON') {
+            return;
+        }
+        const modal = document.getElementById('tgPackModalOverlay');
+        if (modal) modal.style.display = 'none';
+    };
+
+    // Abre el modal del pack a partir de la URL de cualquier sticker (por ejemplo al hacer clic en el chat)
+    window.openStickerPackModalByUrl = async function(stickerUrl) {
+        if (!stickerUrl) return;
+
+        // Si la caché está vacía, cargarla primero
+        if (!window.telegraphStickersCache || window.telegraphStickersCache.length === 0) {
+            try {
+                const res = await fetch('/api/stickers/');
+                if (res.ok) {
+                    const data = await res.json();
+                    window.telegraphStickersCache = data.stickers || [];
+                    const packs = {};
+                    window.telegraphStickersCache.forEach(s => {
+                        const cat = s.category || 'Varios';
+                        if (!packs[cat]) packs[cat] = [];
+                        packs[cat].push(s);
+                    });
+                    window.telegraphPacksCache = packs;
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        // Buscar a qué pack pertenece el sticker
+        const match = window.telegraphStickersCache.find(s => s.url === stickerUrl || stickerUrl.includes(s.name));
+        if (match && match.category) {
+            openStickerPackModal(match.category);
+        } else {
+            // Si no coincide exactamente, abrir el primer pack disponible
+            const firstPack = Object.keys(window.telegraphPacksCache)[0];
+            if (firstPack) openStickerPackModal(firstPack);
+        }
+    };
 
     // Salto rápido a pack desde el dock inferior
     window.jumpToStickerPack = function(packKeyword) {

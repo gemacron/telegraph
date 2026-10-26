@@ -1318,6 +1318,58 @@ html, body {
     background-color: #2b2d31;
 }
 
+/* Barra de Packs de Stickers estilo Telegram (Nav Superior de Packs) */
+.tg-packs-nav {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 4px 8px 4px;
+    background: #18191c;
+    border-bottom: 1px solid #2b2d31;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    margin-bottom: 6px;
+}
+
+.tg-packs-nav::-webkit-scrollbar {
+    display: none;
+}
+
+.tg-pack-nav-btn {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    border-radius: 8px;
+    border: 1.5px solid transparent;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    padding: 3px;
+    position: relative;
+}
+
+.tg-pack-nav-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    transform: scale(1.1);
+}
+
+.tg-pack-nav-btn.active {
+    border-color: #0088cc;
+    background: rgba(0, 136, 204, 0.18);
+    box-shadow: 0 0 10px rgba(0, 136, 204, 0.5);
+}
+
+.tg-pack-nav-thumb {
+    width: 26px;
+    height: 26px;
+    object-fit: contain;
+    filter: drop-shadow(0 1px 3px rgba(0,0,0,0.4));
+}
+
 /* Cuadrícula de Stickers estilo Telegram (Fondo transparente limpio) */
 .tg-stickers-pack-header {
     display: flex;
@@ -1328,6 +1380,27 @@ html, body {
     color: #dbdee1;
     padding: 8px 4px 4px 4px;
     margin-top: 8px;
+}
+
+.tg-pack-view-btn {
+    background: rgba(0, 136, 204, 0.12);
+    color: #0088cc;
+    border: 1px solid rgba(0, 136, 204, 0.35);
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 8px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.tg-pack-view-btn:hover {
+    background: #0088cc;
+    color: #ffffff;
+    box-shadow: 0 2px 8px rgba(0, 136, 204, 0.4);
 }
 
 .tg-stickers-grid {
@@ -2840,6 +2913,162 @@ html, body {
 .btn-toast-red {
     background-color: var(--accent-danger);
 }
+
+/* ==========================================
+   MODAL ESTILO TELEGRAM: VER PACK DE STICKERS COMPLETO
+   ========================================== */
+.tg-pack-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2500;
+    animation: tgModalFadeIn 0.18s ease-out;
+}
+
+@keyframes tgModalFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.tg-pack-modal-dialog {
+    width: 480px;
+    max-width: 92vw;
+    max-height: 85vh;
+    background: #1e1f22;
+    border: 1px solid #2b2d31;
+    border-radius: 16px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.06);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: tgModalZoomIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes tgModalZoomIn {
+    from { transform: scale(0.92); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+.tg-pack-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    background: #18191c;
+    border-bottom: 1px solid #2b2d31;
+}
+
+.tg-pack-modal-info {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.tg-pack-modal-avatar {
+    width: 46px;
+    height: 46px;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 8px rgba(0,0,0,0.4));
+}
+
+.tg-pack-modal-title {
+    font-size: 16.5px;
+    font-weight: 700;
+    color: #ffffff;
+    margin: 0;
+    line-height: 1.2;
+}
+
+.tg-pack-modal-subtitle {
+    font-size: 12px;
+    color: #949ba4;
+    margin-top: 3px;
+}
+
+.tg-pack-modal-close {
+    background: transparent;
+    border: none;
+    color: #949ba4;
+    font-size: 16px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.tg-pack-modal-close:hover {
+    color: #ffffff;
+    background: #2b2d31;
+}
+
+.tg-pack-modal-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 20px;
+    scrollbar-width: thin;
+    scrollbar-color: #2b2d31 transparent;
+}
+
+.tg-pack-modal-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+}
+
+.tg-pack-modal-item {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid transparent;
+    transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+    padding: 6px;
+    position: relative;
+}
+
+.tg-pack-modal-item:hover {
+    transform: scale(1.18);
+    background: rgba(0, 136, 204, 0.12);
+    border-color: rgba(0, 136, 204, 0.4);
+    z-index: 5;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+.tg-pack-modal-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 6px rgba(0,0,0,0.35));
+}
+
+.tg-pack-modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    background: #18191c;
+    border-top: 1px solid #2b2d31;
+}
+
+.tg-pack-modal-hint {
+    font-size: 12px;
+    color: #949ba4;
+}
+
 
 
 
